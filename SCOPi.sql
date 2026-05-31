@@ -1,9 +1,9 @@
 -- ============================================================
 -- SCOPi — Estrutura do Banco de Dados
--- Sistema de Controle de Ordens e Produto Integrado
+-- Sistema de Compras e Orçamentos de Produtos Inteligente
 -- ============================================================
 -- Execute este script no seu MySQL/MariaDB:
--- mysql -u root -p < projeto.sql
+-- mysql -u root -p < sql.sql
 -- ============================================================
 
 CREATE DATABASE IF NOT EXISTS scopi CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -58,7 +58,7 @@ ALTER TABLE departamentos
     ADD CONSTRAINT fk_departamento_gerente
     FOREIGN KEY (gerente_id) REFERENCES usuarios(id) ON DELETE SET NULL;
 
--- ── Tabelas Geográficas para Endereços ──────────────────────
+-- ── Tabelas Geográficas para Endereços (RF06) ──────────────
 CREATE TABLE IF NOT EXISTS paises (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     nome VARCHAR(100) NOT NULL UNIQUE,
@@ -83,6 +83,13 @@ CREATE TABLE IF NOT EXISTS cidades (
     CONSTRAINT fk_cidade_estado FOREIGN KEY (estado_id) REFERENCES estados(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- ── Categorias de produto (RF08) ─────────────────────────
+CREATE TABLE IF NOT EXISTS categorias (
+    id        INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    nome      VARCHAR(100) NOT NULL UNIQUE,
+    situacao  ENUM('ativo','inativo') NOT NULL DEFAULT 'ativo'
+) ENGINE=InnoDB;
+
 -- ── Fornecedores (RF05) ───────────────────────────────────
 CREATE TABLE IF NOT EXISTS fornecedores (
     id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -99,7 +106,6 @@ CREATE TABLE IF NOT EXISTS fornecedores (
     email             VARCHAR(150) NULL,
     contato           VARCHAR(50)  NULL,
     responsavel       VARCHAR(150) NULL,
-    categoria         VARCHAR(100) NULL,
     codigo            VARCHAR(20)  NOT NULL UNIQUE,
     tipo              ENUM('matriz','filial') NOT NULL DEFAULT 'matriz',
     matriz_id         INT UNSIGNED NULL,
@@ -112,15 +118,17 @@ CREATE TABLE IF NOT EXISTS fornecedores (
     CONSTRAINT fk_fornecedor_cidade FOREIGN KEY (cidade_id) REFERENCES cidades(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
-
--- ── Categorias de produto ─────────────────────────────────
-CREATE TABLE IF NOT EXISTS categorias (
-    id        INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    nome      VARCHAR(100) NOT NULL UNIQUE,
-    situacao  ENUM('ativo','inativo') NOT NULL DEFAULT 'ativo'
+-- ── Relação N:N Fornecedor ↔ Categorias (RF05/RF08) ──────
+-- "uma ou mais categorias de mercadorias vendidas"
+CREATE TABLE IF NOT EXISTS fornecedor_categorias (
+    fornecedor_id INT UNSIGNED NOT NULL,
+    categoria_id  INT UNSIGNED NOT NULL,
+    PRIMARY KEY (fornecedor_id, categoria_id),
+    CONSTRAINT fk_fc_fornecedor FOREIGN KEY (fornecedor_id) REFERENCES fornecedores(id) ON DELETE CASCADE,
+    CONSTRAINT fk_fc_categoria  FOREIGN KEY (categoria_id)  REFERENCES categorias(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
--- ── Produtos (RF06) ───────────────────────────────────────
+-- ── Produtos (RF07) ───────────────────────────────────────
 CREATE TABLE IF NOT EXISTS produtos (
     id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     nome         VARCHAR(200) NOT NULL,
@@ -134,7 +142,7 @@ CREATE TABLE IF NOT EXISTS produtos (
     CONSTRAINT fk_produto_categoria FOREIGN KEY (categoria_id) REFERENCES categorias(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
--- ── Solicitações (RF07) ───────────────────────────────────
+-- ── Solicitações (RF09) ───────────────────────────────────
 CREATE TABLE IF NOT EXISTS solicitacoes (
     id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     numero           VARCHAR(30)  NOT NULL UNIQUE,
@@ -164,13 +172,14 @@ CREATE TABLE IF NOT EXISTS solicitacao_itens (
     CONSTRAINT fk_si_produto     FOREIGN KEY (produto_id)     REFERENCES produtos(id)
 ) ENGINE=InnoDB;
 
--- ── Cotações (RF08) ───────────────────────────────────────
+-- ── Cotações (RF10) ───────────────────────────────────────
+-- Status conforme requisito: aberta, fechada, concluida, cancelada
 CREATE TABLE IF NOT EXISTS cotacoes (
     id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     numero          VARCHAR(30)  NOT NULL UNIQUE,
     solicitacao_id  INT UNSIGNED NOT NULL,
     usuario_id      INT UNSIGNED NOT NULL,
-    status          ENUM('aberta','enviada','respondida','fechada','cancelada') NOT NULL DEFAULT 'aberta',
+    status          ENUM('aberta','fechada','concluida','cancelada') NOT NULL DEFAULT 'aberta',
     data_abertura   DATE         NULL,
     data_encerramento DATE       NULL,
     observacao      TEXT         NULL,
@@ -191,16 +200,7 @@ CREATE TABLE IF NOT EXISTS cotacao_itens (
     CONSTRAINT fk_ci_produto  FOREIGN KEY (produto_id)  REFERENCES produtos(id)
 ) ENGINE=InnoDB;
 
--- ── Condições de Pagamento ───────────────────────────────
-CREATE TABLE IF NOT EXISTS condicoes_pagamento (
-    id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    descricao    VARCHAR(100) NOT NULL UNIQUE,
-    situacao     ENUM('ativo','inativo') NOT NULL DEFAULT 'ativo',
-    criado_em    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    atualizado_em DATETIME NULL ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
-
--- ── Convites de cotação para fornecedores (RF09) ──────────
+-- ── Convites de cotação para fornecedores (RF10/RF11) ─────
 -- Cada fornecedor recebe um token único para responder à cotação
 CREATE TABLE IF NOT EXISTS cotacao_fornecedores (
     id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -213,64 +213,61 @@ CREATE TABLE IF NOT EXISTS cotacao_fornecedores (
     modalidade_frete VARCHAR(100)  NULL,
     transportadora  VARCHAR(150)  NULL,
     condicao_pagamento VARCHAR(150) NULL,
-    condicao_pagamento_id INT UNSIGNED NULL,
     impostos        DECIMAL(12,2) NULL DEFAULT 0.00,
     taxas_adicionais DECIMAL(12,2) NULL DEFAULT 0.00,
-    desconto_valor  DECIMAL(12,2) NOT NULL DEFAULT 0.00,
-    desconto_percentual DECIMAL(5,2) NOT NULL DEFAULT 0.00,
     validade_proposta DATE         NULL,
     garantia        VARCHAR(250)  NULL,
+    prazo_entrega   INT           NULL COMMENT 'dias',
     observacao      TEXT          NULL,
     vencedora       TINYINT(1)    NOT NULL DEFAULT 0,
     CONSTRAINT fk_cf_cotacao    FOREIGN KEY (cotacao_id)    REFERENCES cotacoes(id)    ON DELETE CASCADE,
     CONSTRAINT fk_cf_fornecedor FOREIGN KEY (fornecedor_id) REFERENCES fornecedores(id),
-    CONSTRAINT fk_cf_condicao_pagto FOREIGN KEY (condicao_pagamento_id) REFERENCES condicoes_pagamento(id) ON DELETE SET NULL,
     UNIQUE KEY uk_cot_forn (cotacao_id, fornecedor_id)
 ) ENGINE=InnoDB;
 
--- ── Propostas dos fornecedores (RF10) ─────────────────────
+-- ── Propostas dos fornecedores (RF12) ─────────────────────
 CREATE TABLE IF NOT EXISTS cotacao_propostas (
     id                    INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     cotacao_fornecedor_id INT UNSIGNED  NOT NULL,
     produto_id            INT UNSIGNED  NOT NULL,
+    modelo                VARCHAR(200)  NULL,
     quantidade            DECIMAL(10,2) NOT NULL,
     preco_unitario        DECIMAL(12,4) NOT NULL,
-    desconto_valor        DECIMAL(12,2) NOT NULL DEFAULT 0.00,
     prazo_entrega         INT           NULL COMMENT 'dias',
+    disponivel            TINYINT(1)    NOT NULL DEFAULT 1 COMMENT '0 = fornecedor não possui o item',
     observacao            TEXT          NULL,
     CONSTRAINT fk_cp_cf      FOREIGN KEY (cotacao_fornecedor_id) REFERENCES cotacao_fornecedores(id) ON DELETE CASCADE,
     CONSTRAINT fk_cp_produto FOREIGN KEY (produto_id)            REFERENCES produtos(id)
 ) ENGINE=InnoDB;
 
--- ── Ordens de Compra (RF11) ───────────────────────────────
+-- ── Ordens de Compra (RF13) ───────────────────────────────
+-- Status conforme requisito: aberta, autorizada, enviada, parcialmente_atendida, concluida, cancelada
 CREATE TABLE IF NOT EXISTS ordens_compra (
     id                    INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     numero                VARCHAR(30)   NOT NULL UNIQUE,
     cotacao_id            INT UNSIGNED  NULL,
-    cotacao_fornecedor_id INT UNSIGNED  NULL,
+    solicitacao_id        INT UNSIGNED  NULL,
     fornecedor_id         INT UNSIGNED  NOT NULL,
     usuario_id            INT UNSIGNED  NOT NULL,
     aprovador_id          INT UNSIGNED  NULL,
-    condicao_pagamento    VARCHAR(100)  NULL,
-    condicao_pagamento_id INT UNSIGNED  NULL,
+    condicao_pagamento    VARCHAR(150)  NULL,
+    modalidade_frete      VARCHAR(100)  NULL,
     prazo_entrega         VARCHAR(50)   NULL,
     valor_total           DECIMAL(14,2) NOT NULL DEFAULT 0,
-    desconto_valor        DECIMAL(12,2) NOT NULL DEFAULT 0.00,
-    desconto_percentual   DECIMAL(5,2) NOT NULL DEFAULT 0.00,
-    status                ENUM('rascunho','aguardando_aprovacao','autorizada','enviada','parcialmente_atendida','concluida','cancelada') NOT NULL DEFAULT 'rascunho',
+    status                ENUM('aberta','autorizada','enviada','parcialmente_atendida','concluida','cancelada') NOT NULL DEFAULT 'aberta',
     emitido_em            DATE          NULL,
     autorizado_em         DATETIME      NULL,
+    enviado_em            DATETIME      NULL,
     observacao            TEXT          NULL,
     criado_em             DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     atualizado_em         DATETIME      NULL ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_status       (status),
     INDEX idx_fornecedor   (fornecedor_id),
-    CONSTRAINT fk_oc_cotacao    FOREIGN KEY (cotacao_id)   REFERENCES cotacoes(id)   ON DELETE SET NULL,
-    CONSTRAINT fk_oc_cf         FOREIGN KEY (cotacao_fornecedor_id) REFERENCES cotacao_fornecedores(id) ON DELETE SET NULL,
-    CONSTRAINT fk_oc_fornecedor FOREIGN KEY (fornecedor_id) REFERENCES fornecedores(id),
-    CONSTRAINT fk_oc_usuario    FOREIGN KEY (usuario_id)    REFERENCES usuarios(id),
-    CONSTRAINT fk_oc_aprovador  FOREIGN KEY (aprovador_id)  REFERENCES usuarios(id) ON DELETE SET NULL,
-    CONSTRAINT fk_oc_condicao_pagto FOREIGN KEY (condicao_pagamento_id) REFERENCES condicoes_pagamento(id) ON DELETE SET NULL
+    CONSTRAINT fk_oc_cotacao      FOREIGN KEY (cotacao_id)      REFERENCES cotacoes(id)      ON DELETE SET NULL,
+    CONSTRAINT fk_oc_solicitacao  FOREIGN KEY (solicitacao_id)  REFERENCES solicitacoes(id)  ON DELETE SET NULL,
+    CONSTRAINT fk_oc_fornecedor   FOREIGN KEY (fornecedor_id)   REFERENCES fornecedores(id),
+    CONSTRAINT fk_oc_usuario      FOREIGN KEY (usuario_id)      REFERENCES usuarios(id),
+    CONSTRAINT fk_oc_aprovador    FOREIGN KEY (aprovador_id)    REFERENCES usuarios(id)      ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- ── Itens da Ordem de Compra ──────────────────────────────
@@ -281,36 +278,52 @@ CREATE TABLE IF NOT EXISTS ordem_compra_itens (
     quantidade      DECIMAL(10,2) NOT NULL,
     preco_unitario  DECIMAL(12,4) NOT NULL,
     subtotal        DECIMAL(14,2) GENERATED ALWAYS AS (quantidade * preco_unitario) STORED,
+    quantidade_atendida DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT 'Quantidade já recebida via NF',
+    status_item     ENUM('pendente','parcial','atendido','cancelado') NOT NULL DEFAULT 'pendente',
     CONSTRAINT fk_oci_ordem   FOREIGN KEY (ordem_id)   REFERENCES ordens_compra(id) ON DELETE CASCADE,
     CONSTRAINT fk_oci_produto FOREIGN KEY (produto_id) REFERENCES produtos(id)
 ) ENGINE=InnoDB;
 
--- ── Notas Fiscais (RF12) ──────────────────────────────────
+-- ── Notas Fiscais (RF14) ──────────────────────────────────
 CREATE TABLE IF NOT EXISTS notas_fiscais (
     id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     numero            VARCHAR(20)   NOT NULL,
     serie             VARCHAR(5)    NULL,
     chave_acesso      VARCHAR(44)   NULL UNIQUE COMMENT 'Chave NF-e de 44 dígitos',
-    ordem_id          INT UNSIGNED  NULL,
     fornecedor_id     INT UNSIGNED  NOT NULL,
     usuario_id        INT UNSIGNED  NOT NULL,
     natureza_operacao VARCHAR(100)  NULL,
     data_emissao      DATE          NOT NULL,
     data_entrada      DATE          NULL,
+    modalidade_frete  VARCHAR(100)  NULL,
+    transportadora    VARCHAR(150)  NULL,
+    peso              DECIMAL(12,4) NULL,
     valor_produtos    DECIMAL(14,2) NOT NULL DEFAULT 0,
     valor_frete       DECIMAL(12,2) NULL DEFAULT 0,
     valor_desconto    DECIMAL(12,2) NULL DEFAULT 0,
     valor_impostos    DECIMAL(12,2) NULL DEFAULT 0,
+    taxas_adicionais  DECIMAL(12,2) NULL DEFAULT 0,
     valor_total       DECIMAL(14,2) NOT NULL DEFAULT 0,
     observacoes       TEXT          NULL,
     xml_nfe           LONGTEXT      NULL COMMENT 'XML completo da NF-e importada',
+    status            ENUM('registrada','vinculada','cancelada') NOT NULL DEFAULT 'registrada',
     criado_em         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     atualizado_em     DATETIME      NULL ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_fornecedor  (fornecedor_id),
+    INDEX idx_fornecedor   (fornecedor_id),
     INDEX idx_data_emissao (data_emissao),
-    CONSTRAINT fk_nf_ordem     FOREIGN KEY (ordem_id)     REFERENCES ordens_compra(id) ON DELETE SET NULL,
+    INDEX idx_status       (status),
     CONSTRAINT fk_nf_fornecedor FOREIGN KEY (fornecedor_id) REFERENCES fornecedores(id),
     CONSTRAINT fk_nf_usuario   FOREIGN KEY (usuario_id)   REFERENCES usuarios(id)
+) ENGINE=InnoDB;
+
+-- ── Relação N:N Nota Fiscal ↔ Ordens de Compra (RF14) ────
+-- Permite vincular uma NF a várias OCs e uma OC a várias NFs
+CREATE TABLE IF NOT EXISTS nota_fiscal_ordens (
+    nota_fiscal_id INT UNSIGNED NOT NULL,
+    ordem_id       INT UNSIGNED NOT NULL,
+    PRIMARY KEY (nota_fiscal_id, ordem_id),
+    CONSTRAINT fk_nfo_nota  FOREIGN KEY (nota_fiscal_id) REFERENCES notas_fiscais(id) ON DELETE CASCADE,
+    CONSTRAINT fk_nfo_ordem FOREIGN KEY (ordem_id)       REFERENCES ordens_compra(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- ── Itens da Nota Fiscal ──────────────────────────────────
@@ -326,6 +339,20 @@ CREATE TABLE IF NOT EXISTS nota_fiscal_itens (
     ncm            VARCHAR(10)   NULL,
     CONSTRAINT fk_nfi_nota    FOREIGN KEY (nota_id)    REFERENCES notas_fiscais(id) ON DELETE CASCADE,
     CONSTRAINT fk_nfi_produto FOREIGN KEY (produto_id) REFERENCES produtos(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- ── Notificações Internas (RF15) ──────────────────────────
+CREATE TABLE IF NOT EXISTS notificacoes (
+    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    usuario_id  INT UNSIGNED NOT NULL,
+    assunto     VARCHAR(255) NOT NULL,
+    mensagem    TEXT         NOT NULL,
+    categoria   VARCHAR(50)  NULL COMMENT 'solicitacao, cotacao, ordem, nota, alerta, sistema',
+    lida        TINYINT(1)   NOT NULL DEFAULT 0,
+    criado_em   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_usuario  (usuario_id),
+    INDEX idx_lida     (lida),
+    CONSTRAINT fk_notif_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- ── Histórico de alterações (auditoria - RNF05) ───────────
@@ -348,11 +375,12 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- DADOS INICIAIS
 -- ============================================================
 
--- Departamento padrão
+-- Departamentos padrão
 INSERT INTO departamentos (nome, codigo, situacao) VALUES
     ('Administração', 'DEP-ADMIN', 'ativo'),
     ('Compras',       'DEP-COMP',  'ativo'),
     ('Financeiro',    'DEP-FIN',   'ativo'),
+    ('Contabilidade', 'DEP-CONT',  'ativo'),
     ('Operações',     'DEP-OPER',  'ativo');
 
 -- Usuário administrador padrão
@@ -360,7 +388,7 @@ INSERT INTO departamentos (nome, codigo, situacao) VALUES
 INSERT INTO usuarios (nome, email, senha, matricula, departamento_id, perfil, situacao) VALUES
     ('Administrador do Sistema',
      'admin@scopi.com',
-     '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', -- 'password' 
+     '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
      'ADM-001',
      1,
      'administrador',
@@ -371,21 +399,6 @@ UPDATE departamentos SET gerente_id = 1 WHERE codigo = 'DEP-ADMIN';
 
 -- Categorias de produto iniciais
 INSERT INTO categorias (nome, situacao) VALUES
-    ('Material de Escritório', 'ativo'),
-    ('Equipamentos de TI',     'ativo'),
-    ('Limpeza e Higiene',      'ativo'),
-    ('Manutenção',             'ativo'),
-    ('Outros',                 'ativo');
-
-
-CREATE TABLE IF NOT EXISTS categorias (
-    id        INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    nome      VARCHAR(100) NOT NULL UNIQUE,
-    situacao  ENUM('ativo','inativo') NOT NULL DEFAULT 'ativo'
-) ENGINE=InnoDB;
-
--- Inserir categorias de exemplo (caso a tabela esteja vazia ou ignorando duplicados)
-INSERT IGNORE INTO categorias (nome, situacao) VALUES
     ('Material de Escritório', 'ativo'),
     ('Equipamentos de TI',     'ativo'),
     ('Limpeza e Higiene',      'ativo'),
