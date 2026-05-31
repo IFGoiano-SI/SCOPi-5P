@@ -123,13 +123,33 @@ class Notificador {
     }
 
     /**
-     * Simula a criação de uma notificação interna para o usuário.
+     * Cria uma notificação interna para o usuário (RF15).
+     * Grava no banco de dados e também em log como fallback.
      */
-    public static function notificarUsuario(int $usuarioId, string $assunto, string $mensagem): void {
+    public static function notificarUsuario(int $usuarioId, string $assunto, string $mensagem, string $categoria = 'sistema'): void {
+        // 1. Gravar no banco de dados (notificações reais — RF15)
+        try {
+            $db = \Config\BancoDados::obterInstancia()->obterConexao();
+            $q = $db->prepare("
+                INSERT INTO notificacoes (usuario_id, assunto, mensagem, categoria, lida, criado_em)
+                VALUES (:uid, :assunto, :msg, :cat, 0, NOW())
+            ");
+            $q->execute([
+                ':uid' => $usuarioId,
+                ':assunto' => $assunto,
+                ':msg' => strip_tags($mensagem),
+                ':cat' => $categoria
+            ]);
+        } catch (\Exception $e) {
+            // Fallback silencioso — se o banco não está disponível, registra apenas em log
+        }
+
+        // 2. Log em arquivo como backup de auditoria
         $baseDir = defined('APP_ROOT') ? APP_ROOT : dirname(__DIR__);
         $logPath = $baseDir . '/notificacoes_sistema.log';
         $data = date('Y-m-d H:i:s');
-        $logEntry = "[{$data}] Usuário ID: {$usuarioId} | Assunto: {$assunto} | Mensagem: " . strip_tags($mensagem) . "\n";
+        $logEntry = "[{$data}] Usuário ID: {$usuarioId} | Categoria: {$categoria} | Assunto: {$assunto} | Mensagem: " . strip_tags($mensagem) . "\n";
         file_put_contents($logPath, $logEntry, FILE_APPEND);
     }
 }
+
