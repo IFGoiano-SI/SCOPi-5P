@@ -42,6 +42,7 @@ class SolicitacaoModelo extends ModeloBase {
             $this->bd->prepare("INSERT INTO solicitacao_itens (solicitacao_id, produto_id, quantidade) VALUES (:sid,:pid,:qtd)")
                 ->execute([':sid'=>$id,':pid'=>$item['produto_id'],':qtd'=>$item['quantidade']]);
         }
+        $this->registrarHistorico($this->tabela, $id, [], $dados, $usuarioId);
         return $id;
     }
 
@@ -116,6 +117,16 @@ class SolicitacaoModelo extends ModeloBase {
     }
 
     public function cancelar(int $id, int $usuarioId): bool {
+        // RF09: Não pode cancelar se houver cotação ativa vinculada
+        $sol = $this->buscarPorId($id);
+        if ($sol && $sol['status'] === 'autorizada') {
+            $q = $this->bd->prepare("SELECT COUNT(*) FROM cotacoes WHERE solicitacao_id = :sid AND status != 'cancelada'");
+            $q->execute([':sid' => $id]);
+            if ((int)$q->fetchColumn() > 0) {
+                return false; // Cotação ativa impede cancelamento
+            }
+        }
+
         $ok = $this->bd->prepare("UPDATE solicitacoes SET status='cancelada', atualizado_em=NOW() WHERE id=:id AND status IN ('em_aberto','autorizada')")
             ->execute([':id'=>$id]);
         if ($ok) $this->registrarHistorico($this->tabela, $id, [], ['status'=>'cancelada'], $usuarioId);

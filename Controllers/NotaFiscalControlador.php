@@ -2,13 +2,217 @@
 namespace Controllers;
 
 use Config\Auxiliares;
+use Config\Notificador;
 use Models\NotaFiscalModelo;
+use Models\OrdemCompraModelo;
 
 class NotaFiscalControlador extends BaseController {
+
     private NotaFiscalModelo $m;
-    public function __construct() { $this->m = new NotaFiscalModelo(); }
-    public function listar(): void { Auxiliares::exigirPerfil('contabilidade','comprador','administrador'); $filtros=$_GET; $notas=$this->m->listarComFiltros($filtros); $this->renderizar('notas/notas',compact('notas','filtros')); }
-    public function dados(): void { Auxiliares::exigirAutenticacao(); $r=$this->m->buscarPorId((int)($_GET['id']??0)); $r?$this->json(true,'',$r):$this->json(false,'Não encontrado.'); }
-    public function salvar(): void { Auxiliares::exigirPerfil('contabilidade','administrador'); $this->json(true,'Nota salva.'); }
-    public function importar(): void { Auxiliares::exigirPerfil('contabilidade','administrador'); $this->json(true,'Importação processada.'); }
+
+    public function __construct() {
+        $this->m = new NotaFiscalModelo();
+    }
+
+    /**
+     * RF14: Listar notas fiscais com filtros
+     */
+    public function listar(): void {
+        Auxiliares::exigirPerfil('contabilidade', 'comprador', 'administrador');
+        $filtros = $_GET;
+        $notas = $this->m->listarComFiltros($filtros);
+        $this->renderizar('notas/notas', compact('notas', 'filtros'));
+    }
+
+    /**
+     * RF14: Buscar dados de uma nota fiscal por ID (retorna JSON)
+     */
+    public function dados(): void {
+        Auxiliares::exigirAutenticacao();
+        $r = $this->m->buscarPorId((int)($_GET['id'] ?? 0));
+        $r ? $this->json(true, '', $r) : $this->json(false, 'Nota fiscal não encontrada.');
+    }
+
+    /**
+     * RF14: Salvar nota fiscal com todos os campos obrigatórios
+     */
+    public function salvar(): void {
+        Auxiliares::exigirPerfil('contabilidade', 'administrador');
+        $usuario = Auxiliares::usuarioLogado();
+
+        $dados = $_POST;
+
+        // Validações básicas
+        if (empty($dados['numero']) || empty($dados['fornecedor_id']) || empty($dados['data_emissao'])) {
+            $this->json(false, 'Os campos número, fornecedor e data de emissão são obrigatórios.');
+            return;
+        }
+
+        try {
+            $novoId = $this->m->cadastrar($dados, (int)$usuario['id']);
+
+            // Salvar itens se enviados
+            if (!empty($dados['itens']) && is_array($dados['itens'])) {
+                $this->m->salvarItens($novoId, $dados['itens']);
+            }
+
+            // Registrar histórico
+            $this->m->registrarHistorico('notas_fiscais', $novoId, [], $dados, (int)$usuario['id']);
+
+            $this->json(true, 'Nota fiscal cadastrada com sucesso.', ['id' => $novoId]);
+        } catch (\Exception $e) {
+            $this->json(false, $e->getMessage());
+        }
+    }
+
+    /**
+     * RF14: Importar nota fiscal a partir de XML NF-e
+     */
+    public function importar(): void {
+        Auxiliares::exigirPerfil('contabilidade', 'administrador');
+        $usuario = Auxiliares::usuarioLogado();
+
+        // Verificar se o arquivo foi enviado
+        if (empty($_FILES['arquivo_xml']['tmp_name'])) {
+            $this->json(false, 'Nenhum arquivo XML enviado.');
+            return;
+        }
+
+        $xmlContent = file_get_contents($_FILES['arquivo_xml']['tmp_name']);
+        if (empty($xmlContent)) {
+            $this->json(false, 'Arquivo XML vazio ou inválido.');
+            return;
+        }
+
+        $dados = $this->m->importarXml($xmlContent);
+
+        if (isset($dados['erro'])) {
+            $this->json(false, 'Erro ao processar XML: ' . $dados['erro']);
+            return;
+        }
+
+        // Tentar identificar fornecedor pelo CNPJ
+        if (!empty($dados['fornecedor_cnpj'])) {
+            $bd = \Config\BancoDados::obterInstancia()->obterConexao();
+            $qF = $bd->prepare("SELECT id, razao_social FROM fornecedores WHERE cnpj = :cnpj LIMIT 1");
+            $cnpjLimpo = preg_replace('/\D/', '', $dados['fornecedor_cnpj']);
+            $qF->execute([':cnpj' => $cnpjLimpo]);
+            $forn = $qF->fetch();
+            if ($forn) {
+                $dados['fornecedor_id'] = $forn['id'];
+                $dados['fornecedor_nome'] = $forn['razao_social'];
+            }
+        }
+
+        // Retornar dados parseados para o frontend preencher o formulário
+        $this->json(true, 'XML processado com sucesso.', $dados);
+    }
+
+    /**
+     * RF14: Vincular nota fiscal a ordens de compra (N:N)
+     */
+    public function vincular(): void {
+        Auxiliares::exigirPerfil('contabilidade', 'administrador');
+        $usuario = Auxiliares::usuarioLogado();
+        $notaId = (int)($_POST['nota_id'] ?? 0);
+        $ordemId = (int)($_POST['ordem_id'] ?? 0);
+
+        if ($notaId <= 0 || $ordemId <= 0) {
+            $this->json(false, 'IDs de nota fiscal e ordem de compra são obrigatórios.');
+            return;
+        }
+
+        // Verificar divergências antes de vincular (RF14)
+        $divergencias = $this->m->verificarDivergencias($notaId, $ordemId);
+
+        // Vincular mesmo com divergências (mas alertar o usuário)
+        $vinculado = $this->m->vincularOrdem($notaId, $ordemId);
+
+        if (!$vinculado) {
+            $this->json(false, 'Este vínculo já existe.');
+            return;
+        }
+
+        // Atualizar status dos itens da OC conforme recebimento
+        $ordemModelo = new OrdemCompraModelo();
+        $itensNF = $this->m->buscarItens($notaId);
+        $itensOC = $ordemModelo->buscarItens($ordemId);
+        $bd = \Config\BancoDados::obterInstancia()->obterConexao();
+
+        foreach ($itensOC as $itemOC) {
+            foreach ($itensNF as $itemNF) {
+                if ($itemNF['produto_id'] == $itemOC['produto_id']) {
+                    $novaQtdAtendida = (float)$itemOC['quantidade_atendida'] + (float)$itemNF['quantidade'];
+                    $statusItem = $novaQtdAtendida >= (float)$itemOC['quantidade'] ? 'atendido' : 'parcial';
+
+                    $qUp = $bd->prepare("UPDATE ordem_compra_itens SET quantidade_atendida = :qtd, status_item = :st WHERE id = :id");
+                    $qUp->execute([
+                        ':qtd' => $novaQtdAtendida,
+                        ':st' => $statusItem,
+                        ':id' => $itemOC['id']
+                    ]);
+                    break;
+                }
+            }
+        }
+
+        // Atualizar status da OC com base nos itens (RF13)
+        $ordemModelo->atualizarStatusPorItens($ordemId);
+
+        // Notificar comprador responsável
+        $oc = $ordemModelo->buscarPorId($ordemId);
+        if ($oc) {
+            Notificador::notificarUsuario(
+                (int)$oc['usuario_id'],
+                'NF vinculada à OC ' . $oc['numero'],
+                "A nota fiscal foi vinculada à ordem de compra {$oc['numero']}.",
+                'nota'
+            );
+        }
+
+        $resultado = ['vinculado' => true];
+        if (!empty($divergencias)) {
+            $resultado['divergencias'] = $divergencias;
+            $this->json(true, 'Vínculo realizado com sucesso, porém foram identificadas divergências.', $resultado);
+        } else {
+            $this->json(true, 'Vínculo realizado com sucesso.', $resultado);
+        }
+    }
+
+    public function exportar(): void {
+        Auxiliares::exigirPerfil('contabilidade', 'comprador', 'administrador');
+        $filtros = $_GET;
+        $notas = $this->m->listarComFiltros($filtros);
+
+        $cabecalhos = ['ID', 'Número', 'Chave Acesso', 'Fornecedor', 'Valor Total', 'Emissão', 'Criado Em'];
+        $dadosCsv = [];
+        foreach ($notas as $n) {
+            $dadosCsv[] = [
+                $n['id'],
+                $n['numero'],
+                $n['chave_acesso'] ?? '-',
+                $n['nome_fornecedor'] ?? '-',
+                number_format($n['valor_total'] ?? 0, 2, ',', '.'),
+                $n['data_emissao'] ? date('d/m/Y', strtotime($n['data_emissao'])) : '-',
+                date('d/m/Y H:i', strtotime($n['criado_em']))
+            ];
+        }
+
+        Auxiliares::gerarCSV('notas_fiscais', $cabecalhos, $dadosCsv);
+    }
+
+    public function imprimir(): void {
+        Auxiliares::exigirAutenticacao();
+        $id = (int)($_GET['id'] ?? 0);
+        $nota = $this->m->buscarPorId($id);
+        
+        if (!$nota) {
+            die('Nota Fiscal não encontrada.');
+        }
+
+        $nota['itens'] = $this->m->buscarItens($id);
+        
+        // Renderizar a view sem o layout padrão (header/footer) para impressão
+        $this->renderizarSemLayout('notas/imprimir', compact('nota'));
+    }
 }

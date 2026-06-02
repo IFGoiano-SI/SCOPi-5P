@@ -443,15 +443,13 @@ use Config\Auxiliares;
           </div>
 
           <div class="campo-form">
-            <label for="condicao_pagamento_id">Condição de Pagamento *</label>
-            <select name="condicao_pagamento_id" id="condicao_pagamento_id" required <?= $fechada ? 'disabled' : '' ?>>
-              <option value="">Selecione...</option>
-              <?php foreach ($condicoesPagamento as $cp): ?>
-                <option value="<?= $cp['id'] ?>" <?= (int)($cf['condicao_pagamento_id'] ?? 0) === (int)$cp['id'] ? 'selected' : '' ?>>
-                  <?= htmlspecialchars($cp['descricao']) ?>
-                </option>
-              <?php endforeach; ?>
-            </select>
+            <label for="condicao_pagamento">Condição de Pagamento *</label>
+            <input type="text" name="condicao_pagamento" id="condicao_pagamento" required value="<?= htmlspecialchars($cf['condicao_pagamento'] ?? '') ?>" placeholder="Ex: 30/60/90 dias, à vista, boleto..." <?= $fechada ? 'readonly' : '' ?>>
+          </div>
+
+          <div class="campo-form">
+            <label for="prazo_entrega">Prazo de Entrega (dias) *</label>
+            <input type="number" name="prazo_entrega" id="prazo_entrega" min="0" value="<?= htmlspecialchars($cf['prazo_entrega'] ?? '') ?>" required <?= $fechada ? 'readonly' : '' ?> placeholder="dias">
           </div>
 
           <div class="campo-form">
@@ -469,15 +467,7 @@ use Config\Auxiliares;
             <input type="number" name="taxas_adicionais" id="taxas_adicionais" step="0.01" min="0" value="<?= htmlspecialchars($cf['taxas_adicionais'] ?? '0.00') ?>" class="calcula-total" <?= $fechada ? 'readonly' : '' ?>>
           </div>
 
-          <div class="campo-form">
-            <label for="desconto_valor">Desconto Header (R$)</label>
-            <input type="number" name="desconto_valor" id="desconto_valor" step="0.01" min="0" value="<?= htmlspecialchars($cf['desconto_valor'] ?? '0.00') ?>" class="calcula-total" <?= $fechada ? 'readonly' : '' ?>>
-          </div>
 
-          <div class="campo-form">
-            <label for="desconto_percentual">Desconto Header (%)</label>
-            <input type="number" name="desconto_percentual" id="desconto_percentual" step="0.01" min="0" max="100" value="<?= htmlspecialchars($cf['desconto_percentual'] ?? '0.00') ?>" class="calcula-total" <?= $fechada ? 'readonly' : '' ?>>
-          </div>
 
           <div class="campo-form">
             <label for="garantia">Garantia Oferecida</label>
@@ -500,14 +490,15 @@ use Config\Auxiliares;
           <table class="tabela tabela-responder">
             <thead>
               <tr>
-                <th style="width: 100px;">Código</th>
+                <th style="width: 50px; text-align: center;">Disp.</th>
+                <th style="width: 90px;">Código</th>
                 <th>Nome do Produto</th>
-                <th style="width: 90px; text-align: center;">Quantidade</th>
-                <th style="width: 140px;">Preço Unitário (R$) *</th>
-                <th style="width: 110px;">Prazo Entrega (dias) *</th>
-                <th style="width: 120px;">Desconto (R$)</th>
-                <th style="width: 120px; text-align: right;">Subtotal (R$)</th>
-                <th style="width: 180px;">Observação do Item</th>
+                <th style="width: 130px;">Modelo Ofertado</th>
+                <th style="width: 80px; text-align: center;">Quantidade</th>
+                <th style="width: 130px;">Preço Unitário (R$) *</th>
+                <th style="width: 100px;">Prazo Entrega (dias) *</th>
+                <th style="width: 110px; text-align: right;">Subtotal (R$)</th>
+                <th style="width: 160px;">Observação do Item</th>
               </tr>
             </thead>
             <tbody>
@@ -515,15 +506,33 @@ use Config\Auxiliares;
                 $prop = $propostasMapeadas[$item['produto_id']] ?? null;
                 $precoUnit = $prop ? $prop['preco_unitario'] : '';
                 $prazo = $prop ? $prop['prazo_entrega'] : '';
-                $descontoItem = $prop ? $prop['desconto_valor'] : '0.00';
-                $obsItem = $prop ? $prop['observacao'] : '';
+                $obsItem = $prop ? ($prop['observacao'] ?? '') : '';
+                $modeloItem = $prop ? ($prop['modelo'] ?? '') : '';
+                $disponivel = $prop ? (int)($prop['disponivel'] ?? 1) : 1;
                 
-                $subtotal = $prop ? (($item['quantidade'] * $prop['preco_unitario']) - $prop['desconto_valor']) : 0;
-                if ($subtotal < 0) $subtotal = 0;
+                $subtotal = $prop ? ($item['quantidade'] * $prop['preco_unitario']) : 0;
               ?>
                 <tr class="item-linha" data-produto-id="<?= $item['produto_id'] ?>">
+                  <td style="text-align: center;">
+                    <input type="checkbox" 
+                           name="itens[<?= $item['produto_id'] ?>][disponivel]" 
+                           value="1"
+                           class="item-disponivel calcula-total"
+                           <?= $disponivel ? 'checked' : '' ?>
+                           <?= $fechada ? 'disabled' : '' ?>
+                           style="width: 18px; height: 18px; accent-color: var(--media);"
+                           title="Marque se possui este item">
+                  </td>
                   <td style="font-weight: 500;"><?= htmlspecialchars($item['codigo_produto']) ?></td>
                   <td><?= htmlspecialchars($item['nome_produto']) ?></td>
+                  <td>
+                    <input type="text" 
+                           name="itens[<?= $item['produto_id'] ?>][modelo]" 
+                           class="input-tabela" 
+                           value="<?= htmlspecialchars($modeloItem) ?>" 
+                           <?= $fechada ? 'readonly' : '' ?> 
+                           placeholder="Modelo...">
+                  </td>
                   <td style="text-align: center; font-weight: 600;" class="item-qtd"><?= (int)$item['quantidade'] ?></td>
                   <td>
                     <input type="number" 
@@ -532,7 +541,6 @@ use Config\Auxiliares;
                            step="0.01" 
                            min="0.01" 
                            value="<?= $precoUnit ?>" 
-                           required 
                            <?= $fechada ? 'readonly' : '' ?> 
                            placeholder="0.00">
                   </td>
@@ -542,19 +550,8 @@ use Config\Auxiliares;
                            class="input-tabela item-prazo" 
                            min="0" 
                            value="<?= $prazo ?>" 
-                           required 
                            <?= $fechada ? 'readonly' : '' ?> 
                            placeholder="dias">
-                  </td>
-                  <td>
-                    <input type="number" 
-                           name="itens[<?= $item['produto_id'] ?>][desconto_valor]" 
-                           class="input-tabela item-desconto calcula-total" 
-                           step="0.01" 
-                           min="0" 
-                           value="<?= $descontoItem ?>" 
-                           <?= $fechada ? 'readonly' : '' ?> 
-                           placeholder="0.00">
                   </td>
                   <td style="text-align: right; font-weight: 600; color: var(--media);" class="item-subtotal">
                     R$ <?= number_format($subtotal, 2, ',', '.') ?>
@@ -565,7 +562,7 @@ use Config\Auxiliares;
                            class="input-tabela" 
                            value="<?= htmlspecialchars($obsItem) ?>" 
                            <?= $fechada ? 'readonly' : '' ?> 
-                           placeholder="Observações sobre o item...">
+                           placeholder="Obs do item...">
                   </td>
                 </tr>
               <?php endforeach; ?>
@@ -576,7 +573,7 @@ use Config\Auxiliares;
         <!-- Painel de Resumo / Totais -->
         <div class="painel-totais">
           <div class="total-linha">
-            <span>Subtotal dos Itens (c/ desc. item):</span>
+            <span>Subtotal dos Itens Disponíveis:</span>
             <span id="tot-subtotal">R$ 0,00</span>
           </div>
           <div class="total-linha">
@@ -586,14 +583,6 @@ use Config\Auxiliares;
           <div class="total-linha">
             <span>Outras Taxas/Despesas:</span>
             <span id="tot-taxas">R$ 0,00</span>
-          </div>
-          <div class="total-linha">
-            <span>Desconto Header (R$):</span>
-            <span id="tot-desconto-valor">R$ 0,00</span>
-          </div>
-          <div class="total-linha">
-            <span>Desconto Header (%):</span>
-            <span id="tot-desconto-percentual">0,00%</span>
           </div>
           <div class="total-linha geral">
             <span>Total da Proposta:</span>
@@ -645,47 +634,41 @@ use Config\Auxiliares;
     function calcularTotais() {
       let subtotalItens = 0;
 
-      // Calcular o subtotal de cada linha de produto
       document.querySelectorAll('.item-linha').forEach(linha => {
+        const cbDisp = linha.querySelector('.item-disponivel');
+        const disponivel = cbDisp ? cbDisp.checked : true;
         const qtd = parseFloat(linha.querySelector('.item-qtd').textContent) || 0;
         const precoInput = linha.querySelector('.item-preco');
         const preco = parseFloat(precoInput.value) || 0;
-        const descInput = linha.querySelector('.item-desconto');
-        const desconto = parseFloat(descInput.value) || 0;
         
-        const sub = Math.max(0, (qtd * preco) - desconto);
+        // Se não disponível, preço e prazo ficam opcionais (visuais)
+        const precoField = linha.querySelector('.item-preco');
+        const prazoField = linha.querySelector('.item-prazo');
+        if (!disponivel) {
+          precoField.style.opacity = '0.4';
+          prazoField.style.opacity = '0.4';
+        } else {
+          precoField.style.opacity = '1';
+          prazoField.style.opacity = '1';
+        }
+        
+        const sub = disponivel ? Math.max(0, qtd * preco) : 0;
         subtotalItens += sub;
 
-        // Atualiza a coluna de subtotal formatado da linha
         const cellSubtotal = linha.querySelector('.item-subtotal');
         if (cellSubtotal) {
-          cellSubtotal.textContent = formatarMoeda(sub);
+          cellSubtotal.textContent = disponivel ? formatarMoeda(sub) : '—';
         }
       });
 
-      // Ler impostos, taxas adicionais, desconto header valor e desconto header percentual
       const impostos = parseFloat(document.getElementById('impostos').value) || 0;
       const taxas = parseFloat(document.getElementById('taxas_adicionais').value) || 0;
-      const descVal = parseFloat(document.getElementById('desconto_valor').value) || 0;
-      const descPct = parseFloat(document.getElementById('desconto_percentual').value) || 0;
 
-      const totalBruto = subtotalItens + impostos + taxas;
-      let totalGeral = totalBruto - descVal;
-      if (descPct > 0) {
-        totalGeral -= totalBruto * (descPct / 100);
-      }
-      totalGeral = Math.max(0, totalGeral);
+      const totalGeral = Math.max(0, subtotalItens + impostos + taxas);
 
-      // Atualizar o painel de resumo
       document.getElementById('tot-subtotal').textContent = formatarMoeda(subtotalItens);
       document.getElementById('tot-impostos').textContent = formatarMoeda(impostos);
       document.getElementById('tot-taxas').textContent = formatarMoeda(taxas);
-      
-      const descValEl = document.getElementById('tot-desconto-valor');
-      if (descValEl) descValEl.textContent = formatarMoeda(descVal);
-      const descPctEl = document.getElementById('tot-desconto-percentual');
-      if (descPctEl) descPctEl.textContent = descPct.toFixed(2) + '%';
-      
       document.getElementById('tot-geral').textContent = formatarMoeda(totalGeral);
     }
 

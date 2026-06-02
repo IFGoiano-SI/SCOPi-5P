@@ -14,23 +14,25 @@
   <div class="grupo-botoes">
     <button class="btn btn-primario" onclick="Scopi.abrirCadastro('modalNota','formNota')"><img src="<?= BASE_URL ?>/public/assets/icons/iconeInserir.svg" alt=""> Lançar Nota</button>
     <button class="btn btn-secundario" onclick="Scopi.abrirModal('modalImportar')"><img src="<?= BASE_URL ?>/public/assets/icons/iconeDownload.svg" alt=""> Importar NF-e</button>
-    <button class="btn btn-secundario"><img src="<?= BASE_URL ?>/public/assets/icons/iconeDownload.svg" alt=""> Exportar</button>
+    <button class="btn btn-secundario" onclick="window.open('<?= BASE_URL ?>/notas/exportar' + window.location.search, '_blank')"><img src="<?= BASE_URL ?>/public/assets/icons/iconeDownload.svg" alt=""> Exportar</button>
   </div>
   <span style="font-size:.82rem;color:#888;"><?= count($notas) ?> registro(s)</span>
 </div>
 <div class="tabela-container">
   <table class="tabela">
-    <thead><tr><th></th><th>Número</th><th>Fornecedor</th><th>Emissão</th><th>Valor Total</th><th class="coluna-acoes"></th></tr></thead>
+    <thead><tr><th>Número</th><th>Fornecedor</th><th>Emissão</th><th>Valor Total</th><th class="coluna-acoes"></th></tr></thead>
     <tbody>
-      <?php if(empty($notas)): ?><tr><td colspan="6" style="text-align:center;padding:32px;color:#888;">Nenhuma nota encontrada.</td></tr>
+      <?php if(empty($notas)): ?><tr><td colspan="5" style="text-align:center;padding:32px;color:#888;">Nenhuma nota encontrada.</td></tr>
       <?php else: foreach($notas as $n): ?>
       <tr>
-        <td></td>
         <td><span class="cod-clicavel" onclick="Scopi.abrirRegistro('modalNota','formNota','/notas/dados',<?= $n['id'] ?>,'visualizar')"><?= Auxiliares::escapar($n['numero']) ?></span></td>
         <td><?= Auxiliares::escapar($n['nome_fornecedor']??'—') ?></td>
         <td><?= !empty($n['data_emissao'])?date('d/m/Y',strtotime($n['data_emissao'])):'—' ?></td>
         <td>R$ <?= number_format($n['valor_total']??0,2,',','.') ?></td>
-        <td class="coluna-acoes"><button class="btn-icone btn-editar-linha" onclick="Scopi.abrirRegistro('modalNota','formNota','/notas/dados',<?= $n['id'] ?>,'visualizar')" title="Ver"><img src="<?= BASE_URL ?>/public/assets/icons/iconeEditar.svg" alt=""></button></td>
+        <td class="coluna-acoes">
+          <button class="btn-icone btn-editar-linha" onclick="Scopi.abrirRegistro('modalNota','formNota','/notas/dados',<?= $n['id'] ?>,'visualizar')" title="Ver"><img src="<?= BASE_URL ?>/public/assets/icons/iconeEditar.svg" alt=""></button>
+          <button class="btn-icone" onclick="window.open('<?= BASE_URL ?>/notas/imprimir?id=<?= $n['id'] ?>', '_blank')" title="Imprimir"><img src="<?= BASE_URL ?>/public/assets/icons/iconeDownload.svg" alt=""></button>
+        </td>
       </tr>
       <?php endforeach; endif; ?>
     </tbody>

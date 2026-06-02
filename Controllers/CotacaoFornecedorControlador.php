@@ -59,11 +59,7 @@ class CotacaoFornecedorControlador extends BaseController {
             $propostasMapeadas[$p['produto_id']] = $p;
         }
 
-        // Carregar condições de pagamento
-        $qCP = $bd->query("SELECT id, descricao FROM condicoes_pagamento ORDER BY descricao");
-        $condicoesPagamento = $qCP->fetchAll();
-
-        $this->renderizarSemLayout('cotacao/responder', compact('cf', 'itens', 'propostasMapeadas', 'token', 'fechada', 'condicoesPagamento'));
+        $this->renderizarSemLayout('cotacao/responder', compact('cf', 'itens', 'propostasMapeadas', 'token', 'fechada'));
     }
 
     public function salvar(): void {
@@ -102,30 +98,20 @@ class CotacaoFornecedorControlador extends BaseController {
         // Validar campos do cabeçalho
         $modalidadeFrete = trim($_POST['modalidade_frete'] ?? '');
         $transportadora = trim($_POST['transportadora'] ?? '');
-        $condicaoPagamentoId = (int)($_POST['condicao_pagamento_id'] ?? 0);
+        $condicaoPagamento = trim($_POST['condicao_pagamento'] ?? '');
         $impostos = (float)str_replace(',', '.', $_POST['impostos'] ?? '0');
         $taxasAdicionais = (float)str_replace(',', '.', $_POST['taxas_adicionais'] ?? '0');
-        $descontoValor = (float)str_replace(',', '.', $_POST['desconto_valor'] ?? '0');
-        $descontoPercentual = (float)str_replace(',', '.', $_POST['desconto_percentual'] ?? '0');
         $validadeProposta = !empty($_POST['validade_proposta']) ? trim($_POST['validade_proposta']) : null;
         $garantia = trim($_POST['garantia'] ?? '');
+        $prazoEntrega = (int)($_POST['prazo_entrega'] ?? 0);
         $observacao = trim($_POST['observacao'] ?? '');
 
         if (empty($modalidadeFrete)) {
             $this->json(false, 'A modalidade do frete é obrigatória.');
             return;
         }
-        if (empty($condicaoPagamentoId)) {
+        if (empty($condicaoPagamento)) {
             $this->json(false, 'A condição de pagamento é obrigatória.');
-            return;
-        }
-
-        // Buscar descrição da condição de pagamento para manter sincronizado (backward compatibility)
-        $qCPDesc = $bd->prepare("SELECT descricao FROM condicoes_pagamento WHERE id = :id");
-        $qCPDesc->execute([':id' => $condicaoPagamentoId]);
-        $condicaoPagamento = $qCPDesc->fetchColumn();
-        if (!$condicaoPagamento) {
-            $this->json(false, 'Condição de pagamento inválida.');
             return;
         }
 
@@ -144,13 +130,11 @@ class CotacaoFornecedorControlador extends BaseController {
                 SET modalidade_frete = :frete,
                     transportadora = :transp,
                     condicao_pagamento = :pagto,
-                    condicao_pagamento_id = :pagto_id,
                     impostos = :impostos,
                     taxas_adicionais = :taxas,
-                    desconto_valor = :desc_val,
-                    desconto_percentual = :desc_pct,
                     validade_proposta = :validade,
                     garantia = :garantia,
+                    prazo_entrega = :prazo,
                     observacao = :obs,
                     status = 'respondido',
                     respondido_em = NOW()
@@ -160,13 +144,11 @@ class CotacaoFornecedorControlador extends BaseController {
                 ':frete' => $modalidadeFrete,
                 ':transp' => $transportadora,
                 ':pagto' => $condicaoPagamento,
-                ':pagto_id' => $condicaoPagamentoId,
                 ':impostos' => $impostos,
                 ':taxas' => $taxasAdicionais,
-                ':desc_val' => $descontoValor,
-                ':desc_pct' => $descontoPercentual,
                 ':validade' => $validadeProposta,
                 ':garantia' => $garantia,
+                ':prazo' => $prazoEntrega,
                 ':obs' => $observacao,
                 ':cfid' => $cfId
             ]);
@@ -175,11 +157,13 @@ class CotacaoFornecedorControlador extends BaseController {
             foreach ($itensForm as $prodId => $detalhes) {
                 $precoUnitario = (float)str_replace(',', '.', $detalhes['preco_unitario'] ?? '0');
                 $prazoEntrega = (int)($detalhes['prazo_entrega'] ?? 0);
-                $itemDesconto = (float)str_replace(',', '.', $detalhes['desconto_valor'] ?? '0');
                 $obsItem = trim($detalhes['observacao'] ?? '');
+                $modelo = trim($detalhes['modelo'] ?? '');
+                $disponivel = isset($detalhes['disponivel']) ? 1 : 0;
 
-                if ($precoUnitario <= 0) {
-                    throw new \Exception("O preço unitário de todos os itens respondidos deve ser maior que zero.");
+                // RF12: Se o fornecedor não tem o item, preço pode ser 0
+                if ($disponivel && $precoUnitario <= 0) {
+                    throw new \Exception("O preço unitário de todos os itens disponíveis deve ser maior que zero.");
                 }
                 if ($prazoEntrega < 0) {
                     throw new \Exception("O prazo de entrega não pode ser negativo.");
@@ -206,21 +190,23 @@ class CotacaoFornecedorControlador extends BaseController {
                         SET preco_unitario = :preco,
                             prazo_entrega = :prazo,
                             observacao = :obs,
-                            desconto_valor = :desconto
+                            modelo = :modelo,
+                            disponivel = :disp
                         WHERE id = :id
                     ");
                     $qUpProp->execute([
                         ':preco' => $precoUnitario,
                         ':prazo' => $prazoEntrega,
                         ':obs' => $obsItem,
-                        ':desconto' => $itemDesconto,
+                        ':modelo' => $modelo,
+                        ':disp' => $disponivel,
                         ':id' => $propId
                     ]);
                 } else {
                     // Insert
                     $qInProp = $bd->prepare("
-                        INSERT INTO cotacao_propostas (cotacao_fornecedor_id, produto_id, quantidade, preco_unitario, prazo_entrega, observacao, desconto_valor)
-                        VALUES (:cfid, :pid, :qtd, :preco, :prazo, :obs, :desconto)
+                        INSERT INTO cotacao_propostas (cotacao_fornecedor_id, produto_id, quantidade, preco_unitario, prazo_entrega, observacao, modelo, disponivel)
+                        VALUES (:cfid, :pid, :qtd, :preco, :prazo, :obs, :modelo, :disp)
                     ");
                     $qInProp->execute([
                         ':cfid' => $cfId,
@@ -229,14 +215,14 @@ class CotacaoFornecedorControlador extends BaseController {
                         ':preco' => $precoUnitario,
                         ':prazo' => $prazoEntrega,
                         ':obs' => $obsItem,
-                        ':desconto' => $itemDesconto
+                        ':modelo' => $modelo,
+                        ':disp' => $disponivel
                     ]);
                 }
             }
 
-            // 3. Atualizar status da cotação para 'respondida' se ainda estiver 'aberta' ou 'enviada'
-            $bd->prepare("UPDATE cotacoes SET status = 'respondida', atualizado_em = NOW() WHERE id = :cid AND status IN ('aberta', 'enviada')")
-               ->execute([':cid' => $cf['cotacao_id']]);
+            // Nota: A cotação permanece 'aberta' enquanto recebe propostas.
+            // O comprador a 'fecha' ao selecionar o vencedor.
 
             // 4. Notificar comprador/gerente
             $qCot = $bd->prepare("SELECT usuario_id, numero FROM cotacoes WHERE id = :cid");

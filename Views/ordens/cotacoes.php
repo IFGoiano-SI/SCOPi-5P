@@ -16,24 +16,26 @@
         <img src="<?= BASE_URL ?>/public/assets/icons/iconeInserir.svg" alt=""> Nova Cotação
       </button>
     <?php endif; ?>
-    <button class="btn btn-secundario"><img src="<?= BASE_URL ?>/public/assets/icons/iconeDownload.svg" alt=""> Exportar</button>
+    <button class="btn btn-secundario" onclick="window.open('<?= BASE_URL ?>/cotacoes/exportar' + window.location.search, '_blank')"><img src="<?= BASE_URL ?>/public/assets/icons/iconeDownload.svg" alt=""> Exportar</button>
   </div>
   <span style="font-size:.82rem;color:#888;"><?= count($cotacoes) ?> registro(s)</span>
 </div>
 <div class="tabela-container">
   <table class="tabela">
-    <thead><tr><th></th><th>Nº Cotação</th><th>Solicitação</th><th>Abertura</th><th>Encerramento</th><th>Status</th><th class="coluna-acoes"></th></tr></thead>
+    <thead><tr><th>Nº Cotação</th><th>Solicitação</th><th>Abertura</th><th>Encerramento</th><th>Status</th><th class="coluna-acoes"></th></tr></thead>
     <tbody>
-      <?php if(empty($cotacoes)): ?><tr><td colspan="7" style="text-align:center;padding:32px;color:#888;">Nenhuma cotação encontrada.</td></tr>
+      <?php if(empty($cotacoes)): ?><tr><td colspan="6" style="text-align:center;padding:32px;color:#888;">Nenhuma cotação encontrada.</td></tr>
       <?php else: foreach($cotacoes as $c): ?>
       <tr>
-        <td></td>
         <td><span class="cod-clicavel" onclick="Scopi.abrirRegistro('modalCotacao','formCotacao','/cotacoes/dados',<?= $c['id'] ?>,'visualizar')"><?= Auxiliares::escapar($c['numero']??$c['id']) ?></span></td>
         <td><?= Auxiliares::escapar($c['num_solicitacao']??'—') ?></td>
         <td><?= !empty($c['data_abertura'])?date('d/m/Y',strtotime($c['data_abertura'])):'—' ?></td>
         <td><?= !empty($c['data_encerramento'])?date('d/m/Y',strtotime($c['data_encerramento'])):'—' ?></td>
         <td><span class="badge badge-<?= $c['status'] ?>"><?= ucfirst($c['status']) ?></span></td>
-        <td class="coluna-acoes"><button class="btn-icone btn-editar-linha" onclick="Scopi.abrirRegistro('modalCotacao','formCotacao','/cotacoes/dados',<?= $c['id'] ?>,'visualizar')" title="Ver"><img src="<?= BASE_URL ?>/public/assets/icons/iconeEditar.svg" alt=""></button></td>
+        <td class="coluna-acoes">
+          <button class="btn-icone btn-editar-linha" onclick="Scopi.abrirRegistro('modalCotacao','formCotacao','/cotacoes/dados',<?= $c['id'] ?>,'visualizar')" title="Ver"><img src="<?= BASE_URL ?>/public/assets/icons/iconeEditar.svg" alt=""></button>
+          <button class="btn-icone" onclick="window.open('<?= BASE_URL ?>/cotacoes/imprimir?id=<?= $c['id'] ?>', '_blank')" title="Imprimir"><img src="<?= BASE_URL ?>/public/assets/icons/iconeDownload.svg" alt=""></button>
+        </td>
       </tr>
       <?php endforeach; endif; ?>
     </tbody>
@@ -420,14 +422,9 @@ function renderMatrix(cotacao) {
         return formatarMoeda(f.taxas_adicionais);
     });
 
-    html += renderHeaderParamRow('Desconto Header (R$)', f => {
+    html += renderHeaderParamRow('Prazo de Entrega', f => {
         if (f.status !== 'respondido') return '—';
-        return formatarMoeda(f.desconto_valor);
-    });
-
-    html += renderHeaderParamRow('Desconto Header (%)', f => {
-        if (f.status !== 'respondido') return '—';
-        return parseFloat(f.desconto_percentual || 0).toFixed(2) + '%';
+        return f.prazo_entrega ? f.prazo_entrega + ' dias' : 'Não informado';
     });
 
     html += renderHeaderParamRow('Validade Proposta', f => {
@@ -463,15 +460,8 @@ function renderMatrix(cotacao) {
             });
             const impostos = parseFloat(f.impostos || 0);
             const taxas = parseFloat(f.taxas_adicionais || 0);
-            const descVal = parseFloat(f.desconto_valor || 0);
-            const descPct = parseFloat(f.desconto_percentual || 0);
 
-            const totalBruto = subtotalItens + impostos + taxas;
-            let totalGeral = totalBruto - descVal;
-            if (descPct > 0) {
-                totalGeral -= totalBruto * (descPct / 100);
-            }
-            totalGeral = Math.max(0, totalGeral);
+            const totalGeral = Math.max(0, subtotalItens + impostos + taxas);
             html += `<span style="font-weight:700;">${formatarMoeda(totalGeral)}</span>`;
         } else {
             html += `—`;

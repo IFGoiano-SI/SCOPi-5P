@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS cidades (
 CREATE TABLE IF NOT EXISTS categorias (
     id        INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     nome      VARCHAR(100) NOT NULL UNIQUE,
+    codigo    VARCHAR(20)  NOT NULL UNIQUE,
     situacao  ENUM('ativo','inativo') NOT NULL DEFAULT 'ativo'
 ) ENGINE=InnoDB;
 
@@ -355,16 +356,16 @@ CREATE TABLE IF NOT EXISTS notificacoes (
     CONSTRAINT fk_notif_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
--- ── Histórico de alterações (auditoria - RNF05) ───────────
-CREATE TABLE IF NOT EXISTS historico_alteracoes (
-    id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    tabela          VARCHAR(60)  NOT NULL,
-    registro_id     INT UNSIGNED NOT NULL,
-    dados_anteriores JSON        NULL,
-    dados_novos     JSON         NULL,
-    usuario_id      INT UNSIGNED NOT NULL,
-    criado_em       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_tabela     (tabela, registro_id),
+-- ── Histórico de Cadastros (auditoria) ───────────
+CREATE TABLE IF NOT EXISTS historico_cadastros (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    entidade VARCHAR(50) NOT NULL,
+    entidade_id INT UNSIGNED NOT NULL,
+    usuario_id INT UNSIGNED NOT NULL,
+    evento VARCHAR(50) NOT NULL,
+    detalhes TEXT NULL,
+    data_hora DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_entidade (entidade, entidade_id),
     INDEX idx_usuario_id (usuario_id),
     CONSTRAINT fk_hist_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
 ) ENGINE=InnoDB;
@@ -404,3 +405,181 @@ INSERT INTO categorias (nome, situacao) VALUES
     ('Limpeza e Higiene',      'ativo'),
     ('Manutenção',             'ativo'),
     ('Outros',                 'ativo');
+
+-- ── Países ───────────────────────────────────────────────────
+INSERT INTO paises (nome, sigla_iso2, sigla_iso3) VALUES
+    ('Brasil',          'BR', 'BRA'),
+    ('Argentina',       'AR', 'ARG'),
+    ('Estados Unidos',  'US', 'USA'),
+    ('China',           'CN', 'CHN'),
+    ('Alemanha',        'DE', 'DEU');
+
+-- ── Estados (Brasil) ─────────────────────────────────────────
+INSERT INTO estados (nome, sigla, pais_id) VALUES
+    ('São Paulo',           'SP', 1),
+    ('Rio de Janeiro',      'RJ', 1),
+    ('Minas Gerais',        'MG', 1),
+    ('Rio Grande do Sul',   'RS', 1),
+    ('Paraná',              'PR', 1),
+    ('Santa Catarina',      'SC', 1),
+    ('Bahia',               'BA', 1),
+    ('Goiás',               'GO', 1),
+    ('Distrito Federal',    'DF', 1),
+    ('Ceará',               'CE', 1);
+
+-- ── Cidades ──────────────────────────────────────────────────
+INSERT INTO cidades (nome, estado_id) VALUES
+    -- SP (id=1)
+    ('São Paulo',         1),
+    ('Campinas',          1),
+    ('Guarulhos',         1),
+    ('Ribeirão Preto',    1),
+    ('Sorocaba',          1),
+    -- RJ (id=2)
+    ('Rio de Janeiro',    2),
+    ('Niterói',           2),
+    ('Duque de Caxias',   2),
+    -- MG (id=3)
+    ('Belo Horizonte',    3),
+    ('Uberlândia',        3),
+    ('Contagem',          3),
+    -- RS (id=4)
+    ('Porto Alegre',      4),
+    ('Caxias do Sul',     4),
+    ('Pelotas',           4),
+    -- PR (id=5)
+    ('Curitiba',          5),
+    ('Londrina',          5),
+    ('Maringá',           5),
+    -- SC (id=6)
+    ('Florianópolis',     6),
+    ('Joinville',         6),
+    ('Blumenau',          6),
+    -- BA (id=7)
+    ('Salvador',          7),
+    ('Feira de Santana',  7),
+    -- GO (id=8)
+    ('Goiânia',           8),
+    ('Anápolis',          8),
+    -- DF (id=9)
+    ('Brasília',          9),
+    -- CE (id=10)
+    ('Fortaleza',         10),
+    ('Juazeiro do Norte', 10);
+
+-- ── Usuários adicionais ──────────────────────────────────────
+-- Senha padrão: admin@123 (mesmo hash bcrypt do administrador)
+INSERT INTO usuarios (nome, email, senha, matricula, departamento_id, perfil, situacao) VALUES
+    ('Carlos Eduardo Mendes',  'comprador@scopi.com',
+     '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+     'COMP-001', 2, 'comprador', 'ativo'),
+
+    ('Fernanda Lima Oliveira', 'gerente@scopi.com',
+     '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+     'GER-001', 2, 'gerente', 'ativo'),
+
+    ('Ricardo Souza Costa',    'cadastrador@scopi.com',
+     '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+     'CAD-001', 1, 'cadastrador', 'ativo'),
+
+    ('Patrícia Alves Ramos',   'contabilidade@scopi.com',
+     '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+     'CONT-001', 4, 'contabilidade', 'ativo'),
+
+    ('João Pedro Ferreira',    'joao.ferreira@scopi.com',
+     '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+     'USR-001', 5, 'usuario', 'ativo'),
+
+    ('Ana Paula Martins',      'ana.martins@scopi.com',
+     '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+     'USR-002', 3, 'usuario', 'ativo');
+
+-- Atualiza gerente do departamento de Compras
+UPDATE departamentos SET gerente_id = 3 WHERE codigo = 'DEP-COMP';
+
+-- ── Fornecedores ─────────────────────────────────────────────
+INSERT INTO fornecedores
+    (razao_social, nome_fantasia, cnpj, inscricao_estadual,
+     logradouro, numero, bairro, cep, cidade_id,
+     email, contato, responsavel, codigo, tipo, situacao)
+VALUES
+    ('Papelaria Nacional Distribuidora Ltda', 'PaperMax',
+     '12.345.678/0001-90', '123.456.789.110',
+     'Av. Industrial', '1500', 'Distrito Industrial', '01310-100', 1,
+     'vendas@papermax.com.br', '(11) 3333-1000', 'Marcos Andrade',
+     'FORN-001', 'matriz', 'ativo'),
+
+    ('Tech Solutions Informática S/A', 'TechSol',
+     '23.456.789/0001-01', '234.567.890.220',
+     'Rua dos Tecnólogos', '320', 'Centro', '04001-000', 1,
+     'comercial@techsol.com.br', '(11) 4444-2000', 'Luciana Pires',
+     'FORN-002', 'matriz', 'ativo'),
+
+    ('LimpPro Produtos de Limpeza Eireli', 'LimpPro',
+     '34.567.890/0001-12', '345.678.901.330',
+     'Rua das Flores', '80', 'Jardim América', '80010-030', 15,
+     'contato@limppro.com.br', '(41) 5555-3000', 'Sandra Rocha',
+     'FORN-003', 'matriz', 'ativo'),
+
+    ('Manutech Serviços e Equipamentos Ltda', 'Manutech',
+     '45.678.901/0001-23', '456.789.012.440',
+     'Av. das Máquinas', '950', 'Polo Industrial', '30110-000', 9,
+     'orcamentos@manutech.com.br', '(31) 6666-4000', 'Roberto Dias',
+     'FORN-004', 'matriz', 'ativo'),
+
+    ('Multisuprimentos Gerais Comércio Ltda', 'MultiSup',
+     '56.789.012/0001-34', '567.890.123.550',
+     'Rua Comércio Local', '200', 'Setor Comercial', '70070-010', 25,
+     'vendas@multisup.com.br', '(61) 7777-5000', 'Camila Torres',
+     'FORN-005', 'matriz', 'ativo'),
+
+    ('InfoTech Equipamentos e Suprimentos S/A', 'InfoTech',
+     '67.890.123/0001-45', '678.901.234.660',
+     'Av. Tecnologia', '1200', 'TechPark', '04309-010', 1,
+     'vendas@infotech.com.br', '(11) 8888-6000', 'Felipe Nunes',
+     'FORN-006', 'filial', 'ativo'),
+
+    ('Sul Distribuidora de Materiais Ltda', 'SulMatérias',
+     '78.901.234/0001-56', '789.012.345.770',
+     'Rua 7 de Setembro', '450', 'Centro', '90010-190', 12,
+     'comercial@sulmaterias.com.br', '(51) 9999-7000', 'Denise Vargas',
+     'FORN-007', 'matriz', 'ativo');
+
+-- ── Fornecedor ↔ Categorias ──────────────────────────────────
+-- cat 1=Material de Escritório, 2=Equipamentos de TI,
+--     3=Limpeza e Higiene,      4=Manutenção,  5=Outros
+INSERT INTO fornecedor_categorias (fornecedor_id, categoria_id) VALUES
+    (1, 1), (1, 5),        -- PaperMax:    escritório + outros
+    (2, 2), (2, 1),        -- TechSol:     TI + escritório
+    (3, 3), (3, 5),        -- LimpPro:     limpeza + outros
+    (4, 4), (4, 2),        -- Manutech:    manutenção + TI
+    (5, 1), (5, 3), (5, 5),-- MultiSup:    escritório + limpeza + outros
+    (6, 2), (6, 4),        -- InfoTech:    TI + manutenção
+    (7, 1), (7, 3), (7, 4);-- SulMatérias: escritório + limpeza + manutenção
+
+-- ── Produtos ─────────────────────────────────────────────────
+INSERT INTO produtos (nome, descricao, codigo, categoria_id, situacao) VALUES
+    -- Material de Escritório
+    ('Resma de Papel A4 500fls',           'Papel sulfite A4 75g/m², pacote com 500 folhas',                   'PROD-001', 1, 'ativo'),
+    ('Caneta Esferográfica Azul (cx 50un)','Caneta esferográfica ponta média, caixa com 50 unidades',          'PROD-002', 1, 'ativo'),
+    ('Grampeador Médio 26/6',              'Grampeador de mesa capacidade 30 folhas, grampo 26/6',             'PROD-003', 1, 'ativo'),
+    ('Pasta Arquivo com Aba Elástica A4',  'Pasta arquivo em cartão, fechamento elástico, formato A4',         'PROD-004', 1, 'ativo'),
+    ('Post-it 76x76mm (bloco 100fls)',     'Bloco de notas adesivas amarelas, 100 folhas',                     'PROD-005', 1, 'ativo'),
+    ('Marcador de Texto (cx 12)',          'Caneta marcador de texto, cores sortidas, caixa com 12',           'PROD-006', 1, 'ativo'),
+    -- Equipamentos de TI
+    ('Monitor LED 24" Full HD',            'Monitor 24 pol., resolução 1920x1080, HDMI/VGA',                   'PROD-007', 2, 'ativo'),
+    ('Teclado USB ABNT2',                  'Teclado USB padrão ABNT2, com fio',                                'PROD-008', 2, 'ativo'),
+    ('Mouse Óptico USB',                   'Mouse óptico com fio, 1000 DPI, 3 botões',                         'PROD-009', 2, 'ativo'),
+    ('Cartucho de Tinta Preta HP 664',     'Cartucho de tinta preta original HP série 664',                    'PROD-010', 2, 'ativo'),
+    ('Cabo HDMI 2m',                       'Cabo HDMI 2.0, 2 metros, com filtro anti-interferência',           'PROD-011', 2, 'ativo'),
+    ('Pendrive USB 3.0 32GB',              'Pendrive USB 3.0, capacidade 32 GB',                               'PROD-012', 2, 'ativo'),
+    -- Limpeza e Higiene
+    ('Detergente Líquido 500ml (fardo 24)','Detergente neutro 500ml, fardo com 24 unidades',                   'PROD-013', 3, 'ativo'),
+    ('Papel Toalha Interfolha (pct 1000)', 'Papel toalha interfolha branco, 2 dobras, 1000 folhas',            'PROD-014', 3, 'ativo'),
+    ('Álcool 70% Líquido 1L',              'Álcool etílico hidratado 70% INPM, frasco 1 litro',                'PROD-015', 3, 'ativo'),
+    ('Saco de Lixo 100L (rolo 10un)',      'Saco plástico para lixo preto 100 litros, rolo com 10',            'PROD-016', 3, 'ativo'),
+    -- Manutenção
+    ('Lâmpada LED Tubular 20W',            'Lâmpada LED tubular T8 20W bivolt',                                'PROD-017', 4, 'ativo'),
+    ('Tomada 2P+T 10A',                    'Tomada elétrica 2 pinos + terra 10A padrão NBR 14136',             'PROD-018', 4, 'ativo'),
+    ('Fita Isolante 20m',                  'Fita isolante PVC 20 metros, 70°C',                                'PROD-019', 4, 'ativo'),
+    ('Pilha Alcalina AA (cx 24un)',         'Pilha alcalina tipo AA 1,5V, caixa com 24 unidades',               'PROD-020', 4, 'ativo');

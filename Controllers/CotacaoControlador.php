@@ -8,7 +8,7 @@ class CotacaoControlador extends BaseController {
     private CotacaoModelo $m;
     public function __construct() { $this->m = new CotacaoModelo(); }
     public function listar(): void {
-        Auxiliares::exigirPerfil('comprador','administrador');
+        Auxiliares::exigirPerfil('comprador','administrador','gerente');
         $filtros = $_GET;
         $cotacoes = $this->m->listarComFiltros($filtros);
         $fornecedoresAtivos = (new \Models\FornecedorModelo())->listarComFiltros(['situacao' => 'ativo']);
@@ -68,4 +68,99 @@ class CotacaoControlador extends BaseController {
         }
     }
     public function fechar(): void { Auxiliares::exigirPerfil('comprador','administrador'); $this->json(true,'Cotação encerrada.'); }
+
+    /**
+     * RF10: Regenerar/reenviar token de acesso para um fornecedor vinculado à cotação
+     */
+    public function reenviarToken(): void {
+        Auxiliares::exigirPerfil('comprador','administrador');
+        $cotacaoFornecedorId = (int)($_POST['cotacao_fornecedor_id'] ?? 0);
+
+        if ($cotacaoFornecedorId <= 0) {
+            $this->json(false, 'Parâmetros inválidos.');
+            return;
+        }
+
+        $bd = \Config\BancoDados::obterInstancia()->obterConexao();
+
+        // Buscar dados do convite
+        $q = $bd->prepare("
+            SELECT cf.*, c.numero AS numero_cotacao, c.status AS status_cotacao,
+                   f.email, f.razao_social
+            FROM cotacao_fornecedores cf
+            JOIN cotacoes c ON c.id = cf.cotacao_id
+            JOIN fornecedores f ON f.id = cf.fornecedor_id
+            WHERE cf.id = :cfid
+        ");
+        $q->execute([':cfid' => $cotacaoFornecedorId]);
+        $cf = $q->fetch();
+
+        if (!$cf) {
+            $this->json(false, 'Convite não encontrado.');
+            return;
+        }
+
+        if ($cf['status_cotacao'] !== 'aberta') {
+            $this->json(false, 'Só é possível reenviar tokens enquanto a cotação estiver aberta.');
+            return;
+        }
+
+        // Gerar novo token (invalida o anterior)
+        $novoToken = bin2hex(random_bytes(32));
+        $bd->prepare("UPDATE cotacao_fornecedores SET token = :tok, status = 'pendente', enviado_em = NOW() WHERE id = :cfid")
+           ->execute([':tok' => $novoToken, ':cfid' => $cotacaoFornecedorId]);
+
+        // Enviar e-mail com novo link
+        if (!empty($cf['email'])) {
+            $responderUrl = base_url('cotacao/responder?token=' . $novoToken);
+            $assunto = "Reenvio de Convite - Cotação " . $cf['numero_cotacao'];
+            $mensagem = "
+                <h2>Olá, " . htmlspecialchars($cf['razao_social']) . "!</h2>
+                <p>Este é um reenvio do convite para a cotação <strong>" . $cf['numero_cotacao'] . "</strong>.</p>
+                <p>O link anterior foi invalidado. Use o novo link abaixo para enviar sua proposta:</p>
+                <p><a href=\"" . $responderUrl . "\" style=\"display:inline-block; padding:10px 20px; background-color:#510B76; color:#fff; text-decoration:none; border-radius:5px;\">Responder Cotação</a></p>
+                <p>Caso o botão não funcione, copie e cole o seguinte link no seu navegador:</p>
+                <p>" . $responderUrl . "</p>
+                <br>
+                <p>Atenciosamente,<br>Departamento de Compras</p>
+            ";
+            \Config\Notificador::enviarEmail($cf['email'], $assunto, $mensagem);
+        }
+
+        $this->json(true, 'Token regenerado e convite reenviado com sucesso.');
+    }
+
+    public function exportar(): void {
+        Auxiliares::exigirPerfil('comprador', 'administrador', 'gerente');
+        $filtros = $_GET;
+        $cotacoes = $this->m->listarComFiltros($filtros);
+
+        $cabecalhos = ['ID', 'Número', 'Solicitação', 'Vencedor', 'Status', 'Criado Em'];
+        $dadosCsv = [];
+        foreach ($cotacoes as $c) {
+            $dadosCsv[] = [
+                $c['id'],
+                $c['numero'],
+                $c['numero_solicitacao'] ?? '-',
+                $c['fornecedor_vencedor'] ?? '-',
+                ucfirst($c['status']),
+                date('d/m/Y H:i', strtotime($c['criado_em']))
+            ];
+        }
+
+        Auxiliares::gerarCSV('cotacoes', $cabecalhos, $dadosCsv);
+    }
+
+    public function imprimir(): void {
+        Auxiliares::exigirAutenticacao();
+        $id = (int)($_GET['id'] ?? 0);
+        $cotacao = $this->m->buscarComDetalhes($id);
+        
+        if (!$cotacao) {
+            die('Cotação não encontrada.');
+        }
+
+        // Renderizar a view sem o layout padrão para impressão
+        $this->renderizarSemLayout('ordens/imprimir-cotacao', compact('cotacao'));
+    }
 }

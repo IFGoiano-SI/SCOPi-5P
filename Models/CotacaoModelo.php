@@ -34,11 +34,9 @@ class CotacaoModelo extends ModeloBase {
         $cotacao['itens'] = $qItens->fetchAll();
 
         $qForn = $this->bd->prepare("
-            SELECT cf.*, f.razao_social, f.cnpj, f.codigo AS codigo_fornecedor,
-                   cp.descricao AS condicao_pagamento_desc
+            SELECT cf.*, f.razao_social, f.cnpj, f.codigo AS codigo_fornecedor
             FROM cotacao_fornecedores cf
             JOIN fornecedores f ON f.id = cf.fornecedor_id
-            LEFT JOIN condicoes_pagamento cp ON cp.id = cf.condicao_pagamento_id
             WHERE cf.cotacao_id = :id
         ");
         $qForn->execute([':id' => $id]);
@@ -191,8 +189,7 @@ class CotacaoModelo extends ModeloBase {
             $maxPrazo = 0;
             foreach ($propostas as $p) {
                 $subtotalLinha = (float)$p['preco_unitario'] * (float)$p['quantidade'];
-                $descontoLinha = (float)($p['desconto_valor'] ?? 0);
-                $subtotalItens += max(0.00, $subtotalLinha - $descontoLinha);
+                $subtotalItens += $subtotalLinha;
                 if ((int)$p['prazo_entrega'] > $maxPrazo) {
                     $maxPrazo = (int)$p['prazo_entrega'];
                 }
@@ -200,57 +197,37 @@ class CotacaoModelo extends ModeloBase {
 
             $impostos = (float)($cf['impostos'] ?? 0);
             $taxas = (float)($cf['taxas_adicionais'] ?? 0);
-            $valorBruto = $subtotalItens + $impostos + $taxas;
-
-            $descontoValor = (float)($cf['desconto_valor'] ?? 0);
-            $descontoPercentual = (float)($cf['desconto_percentual'] ?? 0);
-
-            $valorTotal = $valorBruto - $descontoValor;
-            if ($descontoPercentual > 0) {
-                $valorTotal -= $valorBruto * ($descontoPercentual / 100.0);
-            }
-            $valorTotal = max(0.00, $valorTotal);
+            $valorTotal = max(0.00, $subtotalItens + $impostos + $taxas);
 
             $numeroOC = 'OC-' . date('Ymd') . '-' . rand(1000, 9999);
             $prazoTexto = $maxPrazo > 0 ? "{$maxPrazo} dias" : "Imediato";
 
-            $condicaoPagamentoId = !empty($cf['condicao_pagamento_id']) ? (int)$cf['condicao_pagamento_id'] : null;
             $condicaoPagamentoDesc = $cf['condicao_pagamento'] ?? '';
-
-            if ($condicaoPagamentoId) {
-                $qCP = $this->bd->prepare("SELECT descricao FROM condicoes_pagamento WHERE id = :id");
-                $qCP->execute([':id' => $condicaoPagamentoId]);
-                $desc = $qCP->fetchColumn();
-                if ($desc) {
-                    $condicaoPagamentoDesc = $desc;
-                }
-            }
+            $modalidadeFrete = $cf['modalidade_frete'] ?? '';
 
             $qOC = $this->bd->prepare("
                 INSERT INTO ordens_compra (
-                    numero, cotacao_id, cotacao_fornecedor_id, fornecedor_id, usuario_id,
-                    condicao_pagamento, condicao_pagamento_id, prazo_entrega, valor_total,
-                    desconto_valor, desconto_percentual, status, emitido_em,
+                    numero, cotacao_id, solicitacao_id, fornecedor_id, usuario_id,
+                    condicao_pagamento, modalidade_frete, prazo_entrega, valor_total,
+                    status, emitido_em,
                     observacao, criado_em
                 ) VALUES (
-                    :num, :cid, :cfid, :fid, :uid,
-                    :cond, :cond_id, :prazo, :total,
-                    :desc_val, :desc_pct, 'rascunho', CURDATE(),
+                    :num, :cid, :sid, :fid, :uid,
+                    :cond, :frete, :prazo, :total,
+                    'aberta', CURDATE(),
                     :obs, NOW()
                 )
             ");
             $qOC->execute([
                 ':num' => $numeroOC,
                 ':cid' => $cotacaoId,
-                ':cfid' => $cotacaoFornecedorId,
+                ':sid' => $cf['solicitacao_id'] ?? null,
                 ':fid' => $cf['fornecedor_id'],
                 ':uid' => $usuarioId,
                 ':cond' => $condicaoPagamentoDesc,
-                ':cond_id' => $condicaoPagamentoId,
+                ':frete' => $modalidadeFrete,
                 ':prazo' => $prazoTexto,
                 ':total' => $valorTotal,
-                ':desc_val' => $descontoValor,
-                ':desc_pct' => $descontoPercentual,
                 ':obs' => $cf['observacao']
             ]);
             $ordemId = (int) $this->bd->lastInsertId();
@@ -268,7 +245,7 @@ class CotacaoModelo extends ModeloBase {
             }
 
             $this->registrarHistorico($this->tabela, $cotacaoId, [], ['vencedora_id' => $cotacaoFornecedorId, 'status' => 'fechada'], $usuarioId);
-            $this->registrarHistorico('ordens_compra', $ordemId, [], ['numero' => $numeroOC, 'status' => 'rascunho'], $usuarioId);
+            $this->registrarHistorico('ordens_compra', $ordemId, [], ['numero' => $numeroOC, 'status' => 'aberta'], $usuarioId);
 
             $this->bd->commit();
             return true;
