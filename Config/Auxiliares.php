@@ -84,4 +84,23 @@ class Auxiliares {
         return !empty($_SERVER['HTTP_X_REQUESTED_WITH'])
             && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
     }
+
+    public static function gerarCSV(string $nomeArquivo, array $cabecalhos, array $dados): void {
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $nomeArquivo . '_' . date('Ymd_His') . '.csv"');
+        
+        $saida = fopen('php://output', 'w');
+        fputs($saida, $bom =(chr(0xEF) . chr(0xBB) . chr(0xBF)));
+
+        if (!empty($cabecalhos)) {
+            fputcsv($saida, $cabecalhos, ';');
+        }
+
+        foreach ($dados as $linha) {
+            fputcsv($saida, $linha, ';');
+        }
+
+        fclose($saida);
+        exit;
+    }
 }

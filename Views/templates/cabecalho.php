@@ -48,8 +48,13 @@ function subAberto(array $rotas, string $atual): bool {
       </a>
     </div>
 
-    <!-- Cadastros -->
-    <?php $cAb = subAberto(['usuarios','departamentos','fornecedores','produtos'],$paginaAtual); ?>
+    <!-- Cadastros (RF02: exibir conforme perfil) -->
+    <?php
+    $perfilUsuario = $usuario['perfil'] ?? 'usuario';
+    $podeCadastros = in_array($perfilUsuario, ['administrador','cadastrador','gerente','comprador','usuario']);
+    ?>
+    <?php if($podeCadastros): ?>
+    <?php $cAb = subAberto(['usuarios','departamentos','fornecedores','produtos','categorias'],$paginaAtual); ?>
     <div class="nav-item <?= $cAb?'ativo aberto':'' ?>" data-tooltip="Cadastros">
       <?php if($cAb): ?><div class="selecao-ativa"></div><?php endif; ?>
       <button class="nav-link <?= $cAb?'ativo':'' ?>" onclick="toggleSubmenu(this)">
@@ -58,18 +63,26 @@ function subAberto(array $rotas, string $atual): bool {
         <span class="seta-submenu">›</span>
       </button>
       <ul class="submenu">
+        <?php if(in_array($perfilUsuario, ['administrador'])): ?>
         <li><a href="<?= BASE_URL ?>/usuarios"      class="nav-link <?= pAti('usuarios',$paginaAtual)?'ativo':'' ?>">
           <span class="texto-nav">Usuários</span></a></li>
+        <?php endif; ?>
+        <?php if(in_array($perfilUsuario, ['administrador','cadastrador'])): ?>
         <li><a href="<?= BASE_URL ?>/departamentos" class="nav-link <?= pAti('departamentos',$paginaAtual)?'ativo':'' ?>">
           <span class="texto-nav">Departamentos</span></a></li>
         <li><a href="<?= BASE_URL ?>/fornecedores"  class="nav-link <?= pAti('fornecedores',$paginaAtual)?'ativo':'' ?>">
           <span class="texto-nav">Fornecedores</span></a></li>
         <li><a href="<?= BASE_URL ?>/produtos"      class="nav-link <?= pAti('produtos',$paginaAtual)?'ativo':'' ?>">
           <span class="texto-nav">Produtos</span></a></li>
+        <li><a href="<?= BASE_URL ?>/categorias"    class="nav-link <?= pAti('categorias',$paginaAtual)?'ativo':'' ?>">
+          <span class="texto-nav">Categorias</span></a></li>
+        <?php endif; ?>
       </ul>
     </div>
+    <?php endif; ?>
 
-    <!-- Solicitações -->
+    <!-- Solicitações (RF09: todos os funcionários podem solicitar) -->
+    <?php if(in_array($perfilUsuario, ['administrador','cadastrador','comprador','gerente','usuario'])): ?>
     <div class="nav-item <?= pAti('solicitacoes',$paginaAtual)?'ativo':'' ?>" data-tooltip="Solicitações">
       <?php if(pAti('solicitacoes',$paginaAtual)): ?><div class="selecao-ativa"></div><?php endif; ?>
       <a href="<?= BASE_URL ?>/solicitacoes" class="nav-link <?= pAti('solicitacoes',$paginaAtual)?'ativo':'' ?>">
@@ -77,8 +90,10 @@ function subAberto(array $rotas, string $atual): bool {
         <span class="texto-nav">Solicitações</span>
       </a>
     </div>
+    <?php endif; ?>
 
-    <!-- Ordens de Compra -->
+    <!-- Ordens de Compra (RF10/RF13: comprador e gerente) -->
+    <?php if(in_array($perfilUsuario, ['administrador','comprador','gerente'])): ?>
     <?php $oAb = subAberto(['ordens','cotacoes'],$paginaAtual); ?>
     <div class="nav-item <?= $oAb?'ativo aberto':'' ?>" data-tooltip="Ordens de Compra">
       <?php if($oAb): ?><div class="selecao-ativa"></div><?php endif; ?>
@@ -94,8 +109,10 @@ function subAberto(array $rotas, string $atual): bool {
           <span class="texto-nav">Ordens de Compra</span></a></li>
       </ul>
     </div>
+    <?php endif; ?>
 
-    <!-- Notas de Entrada -->
+    <!-- Notas de Entrada (RF14: contabilidade, compras e admin) -->
+    <?php if(in_array($perfilUsuario, ['administrador','contabilidade','comprador'])): ?>
     <?php $nAb = subAberto(['notas'],$paginaAtual); ?>
     <div class="nav-item <?= $nAb?'ativo aberto':'' ?>" data-tooltip="Notas de Entrada">
       <?php if($nAb): ?><div class="selecao-ativa"></div><?php endif; ?>
@@ -111,6 +128,7 @@ function subAberto(array $rotas, string $atual): bool {
           <span class="texto-nav">Importar NF-e</span></a></li>
       </ul>
     </div>
+    <?php endif; ?>
 
   </nav>
 
@@ -153,7 +171,7 @@ function subAberto(array $rotas, string $atual): bool {
       <button class="btn-notificacao" id="btnNotificacao" title="Notificações"
               onclick="Scopi.abrirNotificacoes()">
         <img src="<?= BASE_URL ?>/public/assets/icons/iconeNotificacao.svg" alt="Notificações">
-        <span class="badge-notif" id="badgeNotif">3</span>
+        <span class="badge-notif" id="badgeNotif" style="display:none;">0</span>
       </button>
     </div>
   </header>

@@ -15,30 +15,60 @@
   <p class="pagina-subtitulo">Visão geral das operações do SCOPi</p>
 </div>
 
+<style>
+.grade-graficos {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 16px;
+    height: calc(100vh - 210px);
+    overflow: hidden;
+}
+.card-grafico {
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    height: 100%;
+}
+.card-grafico h3 {
+    margin: 0 0 12px 0;
+    font-size: 1rem;
+    color: var(--texto-primario);
+}
+.chart-container {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+}
+</style>
+
 <div class="grade-graficos">
 
   <!-- Gráfico 1: Solicitações por status -->
   <div class="card-grafico">
     <h3>Solicitações por Status</h3>
-    <canvas id="graficoSolicitacoes" height="220"></canvas>
+    <div class="chart-container"><canvas id="graficoSolicitacoes"></canvas></div>
   </div>
 
   <!-- Gráfico 2: Cotações por mês -->
   <div class="card-grafico">
     <h3>Cotações nos Últimos 6 Meses</h3>
-    <canvas id="graficoCotacoes" height="220"></canvas>
+    <div class="chart-container"><canvas id="graficoCotacoes"></canvas></div>
   </div>
 
   <!-- Gráfico 3: Ordens por status -->
   <div class="card-grafico">
     <h3>Ordens de Compra por Status</h3>
-    <canvas id="graficoOrdens" height="220"></canvas>
+    <div class="chart-container"><canvas id="graficoOrdens"></canvas></div>
   </div>
 
   <!-- Gráfico 4: Valor de notas por mês -->
   <div class="card-grafico">
     <h3>Notas Fiscais — Valor Total por Mês</h3>
-    <canvas id="graficoNotas" height="220"></canvas>
+    <div class="chart-container"><canvas id="graficoNotas"></canvas></div>
   </div>
 
 </div>
@@ -96,20 +126,25 @@ function traduzirStatus(s) {
 (function() {
   const { labels, valores } = extrairStatus(dadosSolicitacoes);
   new Chart(document.getElementById('graficoSolicitacoes'), {
-    type: 'pie',
+    type: 'bar',
     data: {
       labels,
       datasets: [{
+        label: 'Solicitações',
         data: valores,
-        backgroundColor: [CORES.roxo, CORES.medio, CORES.magenta, CORES.verde, CORES.azul, CORES.cinza],
-        borderWidth: 2,
-        borderColor: '#fff',
+        backgroundColor: [CORES.roxo + 'CC', CORES.medio + 'CC', CORES.magenta + 'CC', CORES.verde + 'CC', CORES.azul + 'CC', CORES.cinza + 'CC'],
+        borderColor: [CORES.roxo, CORES.medio, CORES.magenta, CORES.verde, CORES.azul, CORES.cinza],
+        borderWidth: 1.5,
+        borderRadius: 4,
       }]
     },
     options: {
       responsive: true,
-      plugins: {
-        legend: { position: 'bottom', labels: { padding: 14, font: { size: 12 } } }
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, grid: { color: '#EDE7F6' }, ticks: { precision: 0 } },
+        x: { grid: { display: false } }
       }
     }
   });
@@ -133,6 +168,7 @@ function traduzirStatus(s) {
     },
     options: {
       responsive: true,
+      maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
         y: { beginAtZero: true, grid: { color: '#EDE7F6' }, ticks: { precision: 0 } },
@@ -142,55 +178,62 @@ function traduzirStatus(s) {
   });
 })();
 
-/* ── Gráfico 3: Rosca — Ordens por status ── */
+/* ── Gráfico 3: Ordens por status ── */
 (function() {
   const { labels, valores } = extrairStatus(dadosOrdens);
   new Chart(document.getElementById('graficoOrdens'), {
-    type: 'doughnut',
+    type: 'bar',
     data: {
       labels,
       datasets: [{
+        label: 'Ordens',
         data: valores,
-        backgroundColor: [CORES.escuro, CORES.medio, CORES.roxo, CORES.magenta, CORES.verde, CORES.azul, CORES.cinza],
-        borderWidth: 2,
-        borderColor: '#fff',
+        backgroundColor: [CORES.laranja + 'CC', CORES.azul + 'CC', CORES.verde + 'CC', CORES.cinza + 'CC'],
+        borderColor: [CORES.laranja, CORES.azul, CORES.verde, CORES.cinza],
+        borderWidth: 1.5,
+        borderRadius: 4,
       }]
     },
     options: {
       responsive: true,
-      cutout: '60%',
-      plugins: { legend: { position: 'bottom', labels: { padding: 14, font: { size: 12 } } } }
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, grid: { color: '#EDE7F6' }, ticks: { precision: 0 } },
+        x: { grid: { display: false } }
+      }
     }
   });
 })();
 
-/* ── Gráfico 4: Linha — Valor de notas por mês ── */
+/* ── Gráfico 4: Valor de notas por mês ── */
 (function() {
   const { labels, valores } = extrairValores(dadosNotas);
   new Chart(document.getElementById('graficoNotas'), {
-    type: 'line',
+    type: 'bar',
     data: {
       labels,
       datasets: [{
-        label: 'R$ Total',
+        label: 'Valor Total (R$)',
         data: valores,
-        borderColor: CORES.roxo,
-        backgroundColor: CORES.roxo + '22',
-        fill: true,
-        tension: .4,
-        pointBackgroundColor: CORES.roxo,
-        pointRadius: 5,
-        pointHoverRadius: 7,
+        backgroundColor: CORES.verde + 'CC',
+        borderColor: CORES.verde,
+        borderWidth: 1.5,
+        borderRadius: 4,
       }]
     },
     options: {
       responsive: true,
-      plugins: { legend: { display: false } },
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: function(c){ return 'R$ ' + c.raw.toLocaleString('pt-BR',{minimumFractionDigits:2}); } } }
+      },
       scales: {
         y: {
           beginAtZero: true,
           grid: { color: '#EDE7F6' },
-          ticks: { callback: v => 'R$ ' + v.toLocaleString('pt-BR') }
+          ticks: { callback: function(v){ return 'R$ ' + v.toLocaleString('pt-BR'); } }
         },
         x: { grid: { display: false } }
       }

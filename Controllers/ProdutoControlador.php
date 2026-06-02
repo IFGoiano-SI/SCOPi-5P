@@ -32,4 +32,43 @@ class ProdutoControlador extends BaseController {
         Auxiliares::exigirAutenticacao();
         $this->json(true, '', $this->m->listarAtivos());
     }
+
+    public function consultarCodigo(): void {
+        Auxiliares::exigirAutenticacao();
+        $codigo = trim($_GET['codigo'] ?? '');
+        if ($codigo === '') {
+            $this->json(false, 'Código não informado.'); return;
+        }
+        $bd = \Config\BancoDados::obterInstancia()->obterConexao();
+        $q = $bd->prepare("SELECT p.id, p.nome, c.nome as categoria_nome FROM produtos p LEFT JOIN categorias c ON p.categoria_id = c.id WHERE p.codigo = :codigo AND p.situacao = 'ativo'");
+        $q->execute([':codigo' => $codigo]);
+        $res = $q->fetch(\PDO::FETCH_ASSOC);
+        if ($res) {
+            $this->json(true, '', $res);
+        } else {
+            $this->json(false, 'Produto não encontrado ou inativo.');
+        }
+    }
+
+    public function exportar(): void {
+        Auxiliares::exigirAutenticacao();
+        $filtros = $_GET;
+        $produtos = $this->m->listarComFiltros($filtros);
+
+        $cabecalhos = ['ID', 'Código', 'Nome', 'Descrição', 'Categoria', 'Situação', 'Criado Em'];
+        $dadosCsv = [];
+        foreach ($produtos as $p) {
+            $dadosCsv[] = [
+                $p['id'],
+                $p['codigo'],
+                $p['nome'],
+                $p['descricao'],
+                $p['categoria_nome'] ?? '-',
+                ucfirst($p['situacao']),
+                date('d/m/Y H:i', strtotime($p['criado_em']))
+            ];
+        }
+
+        Auxiliares::gerarCSV('produtos', $cabecalhos, $dadosCsv);
+    }
 }

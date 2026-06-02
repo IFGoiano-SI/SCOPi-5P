@@ -9,7 +9,7 @@ class ProdutoModelo extends ModeloBase {
         $p = [];
         if (!empty($filtros['nome']))      { $sql .= ' AND p.nome LIKE :nome';         $p[':nome']     = "%{$filtros['nome']}%"; }
         if (!empty($filtros['codigo']))    { $sql .= ' AND p.codigo LIKE :codigo';     $p[':codigo']   = "%{$filtros['codigo']}%"; }
-        if (!empty($filtros['categoria'])) { $sql .= ' AND p.categoria_id = :cat';     $p[':cat']      = $filtros['categoria']; }
+        if (!empty($filtros['categoria_codigo'])) { $sql .= ' AND c.codigo LIKE :cat_cod'; $p[':cat_cod'] = "%{$filtros['categoria_codigo']}%"; }
         if (!empty($filtros['situacao']))  { $sql .= ' AND p.situacao = :situacao';    $p[':situacao'] = $filtros['situacao']; }
         $sql .= ' ORDER BY p.nome ASC';
         $q = $this->bd->prepare($sql); $q->execute($p);

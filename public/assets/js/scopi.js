@@ -31,8 +31,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
 /* Submenus */
 function toggleSubmenu(botao) {
+  const sidebar = document.getElementById('sidebar');
   const item = botao.closest('.nav-item');
   const pai  = item.parentElement;
+
+  // Se a sidebar estiver recolhida, expandir primeiro e depois abrir o submenu
+  if (sidebar && sidebar.classList.contains('retraida')) {
+    sidebar.classList.remove('retraida');
+    document.body.classList.remove('sidebar-retraida');
+    localStorage.setItem('scopi_sidebar_retraida', '0');
+    // Fecha outros submenus abertos e abre o clicado
+    pai?.querySelectorAll('.nav-item.aberto').forEach(i => { if(i !== item) i.classList.remove('aberto'); });
+    item.classList.add('aberto');
+    return;
+  }
+
   pai?.querySelectorAll('.nav-item.aberto').forEach(i => { if(i !== item) i.classList.remove('aberto'); });
   item.classList.toggle('aberto');
 }
@@ -96,7 +109,8 @@ const Scopi = {
       Scopi.preencherVisualizacao(idModal, json.dados);
       Scopi.preencherFormulario(idForm, json.dados);
       const titulo = overlay.querySelector('.modal-titulo span');
-      if(titulo) titulo.textContent = `#${json.dados.codigo||json.dados.numero||json.dados.id}`;
+      let acao = (abaInicial === 'visualizar') ? 'Visualizar' : 'Editar';
+      if(titulo) titulo.textContent = `${acao} #${json.dados.codigo||json.dados.numero||json.dados.id}`;
       Scopi.ativarAba(idModal, abaInicial);
     } catch(e) { Scopi.toast('erro','Falha na comunicação.'); Scopi.fecharModal(idModal); }
   },
@@ -125,6 +139,11 @@ const Scopi = {
     if(!o) return;
     o.querySelectorAll('.aba-btn').forEach(b => b.classList.toggle('ativa', b.dataset.aba===aba));
     o.querySelectorAll('.conteudo-aba').forEach(d => d.classList.toggle('ativo', d.dataset.aba===aba));
+    
+    const btnSalvar = o.querySelector('.btn-salvar');
+    if(btnSalvar) {
+      btnSalvar.style.display = (aba === 'visualizar') ? 'none' : 'inline-flex';
+    }
   },
   async enviarFormulario(idForm, idModal, url, cb=null) {
     const form = document.getElementById(idForm);
@@ -307,7 +326,7 @@ const Scopi = {
              data-id="${n.id}"
              onclick="Scopi.Notif.abrirDetalhe(${n.id})">
           <div class="notif-icone ${n.categoria}">
-            <img src="${this._icone(n.categoria)}" alt="">
+            <div class="notif-icone-img" style="-webkit-mask-image: url('${this._icone(n.categoria)}'); mask-image: url('${this._icone(n.categoria)}');"></div>
           </div>
           <div class="notif-item-conteudo">
             <div class="notif-assunto">${this._esc(n.assunto)}</div>
@@ -372,7 +391,7 @@ const Scopi = {
                  class="notif-link-ref"
                  onclick="Scopi.fecharModal('modalNotificacoes')"
                  title="Ir para ${ref.numero}">
-                <img src="${this._icone(ref.tipo)}" alt="">
+                <div class="notif-link-img" style="-webkit-mask-image: url('${this._icone(ref.tipo)}'); mask-image: url('${this._icone(ref.tipo)}');"></div>
                 ${ref.numero}
               </a>`;
           });

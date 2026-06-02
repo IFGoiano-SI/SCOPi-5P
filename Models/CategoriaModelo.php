@@ -5,7 +5,7 @@ class CategoriaModelo extends ModeloBase {
     protected string $tabela = 'categorias';
 
     public function listarAtivas(): array {
-        $q = $this->bd->prepare("SELECT id, nome FROM categorias WHERE situacao='ativo' ORDER BY nome");
+        $q = $this->bd->prepare("SELECT id, nome, codigo FROM categorias WHERE situacao='ativo' ORDER BY nome");
         $q->execute();
         return $q->fetchAll();
     }
@@ -13,6 +13,7 @@ class CategoriaModelo extends ModeloBase {
     public function listarComFiltros(array $filtros = []): array {
         $sql = "SELECT * FROM categorias WHERE 1=1";
         $p = [];
+        if (!empty($filtros['codigo']))   { $sql .= ' AND codigo LIKE :codigo';       $p[':codigo']   = "%{$filtros['codigo']}%"; }
         if (!empty($filtros['nome']))     { $sql .= ' AND nome LIKE :nome';         $p[':nome']     = "%{$filtros['nome']}%"; }
         if (!empty($filtros['situacao'])) { $sql .= ' AND situacao = :situacao';    $p[':situacao'] = $filtros['situacao']; }
         $sql .= ' ORDER BY nome ASC';
@@ -22,9 +23,18 @@ class CategoriaModelo extends ModeloBase {
     }
 
     public function cadastrar(array $dados, ?int $responsavelId = null): int {
-        $q = $this->bd->prepare("INSERT INTO categorias (nome, situacao) VALUES (:nome, 'ativo')");
-        $q->execute([':nome' => $dados['nome']]);
+        // Gera um código temporário para não violar constraint UNIQUE
+        $tempCode = uniqid('cat_');
+        $q = $this->bd->prepare("INSERT INTO categorias (nome, codigo, situacao) VALUES (:nome, :codigo, 'ativo')");
+        $q->execute([':nome' => $dados['nome'], ':codigo' => $tempCode]);
         $novoId = (int) $this->bd->lastInsertId();
+        
+        // Atualiza com o código definitivo baseado no ID
+        $codigoDefinitivo = 'cat' . str_pad($novoId, 6, '0', STR_PAD_LEFT);
+        $this->bd->prepare("UPDATE categorias SET codigo = :cod WHERE id = :id")->execute([':cod' => $codigoDefinitivo, ':id' => $novoId]);
+        
+        $dados['codigo'] = $codigoDefinitivo; // Para o histórico
+        
         if ($responsavelId) {
             $this->registrarHistorico($this->tabela, $novoId, [], $dados, $responsavelId);
         }

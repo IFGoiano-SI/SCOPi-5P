@@ -24,9 +24,9 @@ function subAberto(array $rotas, string $atual): bool {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Projeto</title>
+  <title>SCOPi</title>
   <link rel="stylesheet" href="<?= BASE_URL ?>/public/assets/css/estilo.css">
-  <script>const SCOPI_BASE = "<?= BASE_URL ?>";</script>
+  <script>window.SCOPI_BASE = "<?= BASE_URL ?>";</script>
   <script src="<?= BASE_URL ?>/public/assets/js/scopi.js"></script>
 </head>
 <body>
@@ -50,8 +50,8 @@ function subAberto(array $rotas, string $atual): bool {
       </a>
     </div>
 
-    <?php if (in_array($usuario['perfil'] ?? '', ['administrador', 'cadastrador'])): ?>
-    <?php $cAb = subAberto(['usuarios','departamentos','fornecedores','produtos','categorias','condicoes-pagamento'],$paginaAtual); ?>
+    <?php if (in_array($usuario['perfil'] ?? '', ['administrador', 'cadastrador', 'gerente'])): ?>
+    <?php $cAb = subAberto(['usuarios','departamentos','fornecedores','produtos','categorias'],$paginaAtual); ?>
     <div class="nav-item <?= $cAb?'ativo aberto':'' ?>" data-tooltip="Cadastros">
       <?php if($cAb): ?><div class="selecao-ativa"></div><?php endif; ?>
       <button class="nav-link <?= $cAb?'ativo':'' ?>" onclick="toggleSubmenu(this)">
@@ -60,28 +60,39 @@ function subAberto(array $rotas, string $atual): bool {
         <span class="seta-submenu">›</span>
       </button>
       <ul class="submenu">
+        <?php if (in_array($usuario['perfil'] ?? '', ['administrador', 'gerente'])): ?>
         <li><a href="<?= BASE_URL ?>/usuarios"      class="nav-link <?= pAti('usuarios',$paginaAtual)?'ativo':'' ?>">
           <span class="texto-nav">Usuários</span></a></li>
+        <?php endif; ?>
+        <?php if (in_array($usuario['perfil'] ?? '', ['administrador', 'cadastrador'])): ?>
         <li><a href="<?= BASE_URL ?>/departamentos" class="nav-link <?= pAti('departamentos',$paginaAtual)?'ativo':'' ?>">
           <span class="texto-nav">Departamentos</span></a></li>
         <li><a href="<?= BASE_URL ?>/fornecedores"  class="nav-link <?= pAti('fornecedores',$paginaAtual)?'ativo':'' ?>">
           <span class="texto-nav">Fornecedores</span></a></li>
         <li><a href="<?= BASE_URL ?>/produtos"      class="nav-link <?= pAti('produtos',$paginaAtual)?'ativo':'' ?>">
           <span class="texto-nav">Produtos</span></a></li>
-        <li><a href="<?= BASE_URL ?>/categorias"    class="nav-link <?= pAti('categorias',$paginaAtual)?'ativo':'' ?>">
-          <span class="texto-nav">Categorias</span></a></li>
-        <li><a href="<?= BASE_URL ?>/condicoes-pagamento" class="nav-link <?= pAti('condicoes-pagamento',$paginaAtual)?'ativo':'' ?>">
-          <span class="texto-nav">Condições de Pagamento</span></a></li>
+        <li><a href="<?= BASE_URL ?>/categorias"    class="nav-link <?= pAti('categorias',$paginaAtual)?'ativo':'' ?>"><span class="texto-nav">Categorias</span></a></li>
+        <?php endif; ?>
       </ul>
     </div>
     <?php endif; ?>
 
-    <div class="nav-item <?= pAti('solicitacoes',$paginaAtual)?'ativo':'' ?>" data-tooltip="Solicitações">
-      <?php if(pAti('solicitacoes',$paginaAtual)): ?><div class="selecao-ativa"></div><?php endif; ?>
-      <a href="<?= BASE_URL ?>/solicitacoes" class="nav-link <?= pAti('solicitacoes',$paginaAtual)?'ativo':'' ?>">
+    <?php $sAb = subAberto(['solicitacoes'],$paginaAtual); ?>
+    <div class="nav-item <?= $sAb?'ativo aberto':'' ?>" data-tooltip="Solicitações">
+      <?php if($sAb): ?><div class="selecao-ativa"></div><?php endif; ?>
+      <button class="nav-link <?= $sAb?'ativo':'' ?>" onclick="toggleSubmenu(this)">
         <img src="<?= BASE_URL ?>/public/assets/icons/iconeSolicitacao.svg" alt="" class="icone-nav">
         <span class="texto-nav">Solicitações</span>
-      </a>
+        <span class="seta-submenu">›</span>
+      </button>
+      <ul class="submenu">
+        <li><a href="<?= BASE_URL ?>/solicitacoes" class="nav-link <?= $paginaAtual === 'solicitacoes' ? 'ativo' : '' ?>">
+          <span class="texto-nav">Solicitações</span></a></li>
+        <?php if (in_array($usuario['perfil'] ?? '', ['gerente', 'administrador'])): ?>
+        <li><a href="<?= BASE_URL ?>/solicitacoes/autorizacoes" class="nav-link <?= $paginaAtual === 'solicitacoes/autorizacoes' ? 'ativo' : '' ?>">
+          <span class="texto-nav">Autorizações</span></a></li>
+        <?php endif; ?>
+      </ul>
     </div>
 
     <?php if (in_array($usuario['perfil'] ?? '', ['comprador', 'administrador', 'gerente'])): ?>
@@ -98,25 +109,21 @@ function subAberto(array $rotas, string $atual): bool {
           <span class="texto-nav">Cotações</span></a></li>
         <li><a href="<?= BASE_URL ?>/ordens"   class="nav-link <?= $paginaAtual==='ordens'?'ativo':'' ?>">
           <span class="texto-nav">Ordens de Compra</span></a></li>
+        <?php if (in_array($usuario['perfil'] ?? '', ['gerente', 'administrador'])): ?>
+        <li><a href="<?= BASE_URL ?>/ordens/autorizacoes" class="nav-link <?= $paginaAtual === 'ordens/autorizacoes' ? 'ativo' : '' ?>">
+          <span class="texto-nav">Autorizações</span></a></li>
+        <?php endif; ?>
       </ul>
     </div>
     <?php endif; ?>
 
     <?php if (in_array($usuario['perfil'] ?? '', ['contabilidade', 'comprador', 'administrador'])): ?>
-    <?php $nAb = subAberto(['notas'],$paginaAtual); ?>
-    <div class="nav-item <?= $nAb?'ativo aberto':'' ?>" data-tooltip="Notas de Entrada">
-      <?php if($nAb): ?><div class="selecao-ativa"></div><?php endif; ?>
-      <button class="nav-link <?= $nAb?'ativo':'' ?>" onclick="toggleSubmenu(this)">
+    <div class="nav-item <?= pAti('notas',$paginaAtual)?'ativo':'' ?>" data-tooltip="Notas de Entrada">
+      <?php if(pAti('notas',$paginaAtual)): ?><div class="selecao-ativa"></div><?php endif; ?>
+      <a href="<?= BASE_URL ?>/notas" class="nav-link <?= pAti('notas',$paginaAtual)?'ativo':'' ?>">
         <img src="<?= BASE_URL ?>/public/assets/icons/iconeNF.svg" alt="" class="icone-nav">
         <span class="texto-nav">Notas de Entrada</span>
-        <span class="seta-submenu">›</span>
-      </button>
-      <ul class="submenu">
-        <li><a href="<?= BASE_URL ?>/notas"          class="nav-link <?= $paginaAtual==='notas'?'ativo':'' ?>">
-          <span class="texto-nav">Notas Fiscais</span></a></li>
-        <li><a href="<?= BASE_URL ?>/notas/importar" class="nav-link <?= $paginaAtual==='notas/importar'?'ativo':'' ?>">
-          <span class="texto-nav">Importar NF-e</span></a></li>
-      </ul>
+      </a>
     </div>
     <?php endif; ?>
 

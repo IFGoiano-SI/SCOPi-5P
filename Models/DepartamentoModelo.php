@@ -21,6 +21,7 @@ class DepartamentoModelo extends ModeloBase {
         }
         if (!empty($filtros['nome']))     { $sql .= ' AND d.nome LIKE :nome';         $p[':nome']     = "%{$filtros['nome']}%"; }
         if (!empty($filtros['codigo']))   { $sql .= ' AND d.codigo LIKE :codigo';     $p[':codigo']   = "%{$filtros['codigo']}%"; }
+        if (!empty($filtros['gerente_matricula'])) { $sql .= ' AND u.matricula LIKE :gerente_matricula'; $p[':gerente_matricula'] = "%{$filtros['gerente_matricula']}%"; }
         if (!empty($filtros['situacao'])) { $sql .= ' AND d.situacao = :situacao';    $p[':situacao'] = $filtros['situacao']; }
         $sql .= ' ORDER BY d.nome ASC';
         $q = $this->bd->prepare($sql);

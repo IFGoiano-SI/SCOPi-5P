@@ -97,8 +97,8 @@ button{font-family:'Poppins',sans-serif}
 .nav-link.ativo img.icone-nav{filter:brightness(0) invert(1)!important}
 
 .selecao-ativa{
-  position:absolute;left:0;top:0;width:100%;height:100%;
-  background:#9133D2;border-radius:0 5px 5px 0;z-index:-1;
+  position:absolute;left:0;top:4px;bottom:4px;width:calc(100% + 4px);
+  background:#9133D2;border-radius:0 8px 8px 0;z-index:-1;
 }
 
 /* Seta submenu */
@@ -132,8 +132,8 @@ button{font-family:'Poppins',sans-serif}
 .sidebar.retraida .nav-link .texto-nav{opacity:0;width:0;margin-left:0;overflow:hidden}
 .sidebar.retraida .nav-link{justify-content:center;padding:0 0;padding-left:0;padding-right:0;display:flex;justify-content:center}
 .sidebar.retraida .seta-submenu{display:none}
-.sidebar.retraida .submenu{padding:3px 4px}
-.sidebar.retraida .submenu .nav-link{justify-content:center;padding:0}
+.sidebar.retraida .submenu{display:none !important}
+.sidebar.retraida .nav-item.aberto > .submenu{display:none !important}
 
 /* Tooltip retraída */
 .sidebar.retraida .nav-item:hover::after{
@@ -218,6 +218,11 @@ body.sidebar-retraida .conteudo{margin-left:var(--sb-min)}
 
 /* Área de conteúdo */
 .pagina{flex:1;padding:0 22px 22px}
+
+/* Cabeçalho de página */
+.pagina-cabecalho{padding:18px 0 14px}
+.pagina-titulo{font-size:1.1rem;font-weight:600;color:var(--escura);line-height:1.3;margin:0}
+.pagina-subtitulo{font-size:.78rem;font-weight:400;color:#888;margin-top:2px}
 
 /* ════════════════════════════════════════════════════════
    DASHBOARD — cards brancos radius 20px
@@ -324,7 +329,7 @@ body.sidebar-retraida .conteudo{margin-left:var(--sb-min)}
 .btn-fechar-modal:hover{opacity:1}
 .btn-fechar-modal img{width:16px;filter:brightness(0) invert(1)}
 
-.modal-abas{display:flex;border-bottom:1px solid var(--borda);padding:0 20px;background:var(--fundo-tela)}
+.modal-abas{display:none;} /* Abas ocultas para simplificar fluxo */
 .aba-btn{padding:10px 16px;background:none;border:none;border-bottom:2px solid transparent;font-family:'Poppins',sans-serif;font-size:.78rem;font-weight:500;color:#888;cursor:pointer;transition:all var(--trans)}
 .aba-btn.ativa{color:var(--destaque);border-bottom-color:var(--destaque);font-weight:600}
 
@@ -439,23 +444,26 @@ body.sidebar-retraida .conteudo{margin-left:var(--sb-min)}
 
 /* Ícone categoria */
 .notif-icone{
-  width:32px;height:32px;border-radius:8px;
+  width:40px;height:40px;border-radius:10px;
   display:flex;align-items:center;justify-content:center;
-  flex-shrink:0;margin-top:1px;
+  flex-shrink:0;
 }
-.notif-icone img{width:16px;height:16px;object-fit:contain}
+.notif-icone-img {
+  width: 16px; height: 16px;
+  background-color: var(--media);
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+}
 .notif-icone.solicitacao{background:#EDE7F6}
-.notif-icone.solicitacao img{filter:brightness(0) saturate(100%) invert(20%) sepia(80%) saturate(600%) hue-rotate(260deg)}
 .notif-icone.ordem{background:#E3F2FD}
-.notif-icone.ordem img{filter:brightness(0) saturate(100%) invert(10%) sepia(80%) saturate(800%) hue-rotate(200deg)}
 .notif-icone.nota{background:#E8F5E9}
-.notif-icone.nota img{filter:brightness(0) saturate(100%) invert(25%) sepia(80%) saturate(400%) hue-rotate(90deg)}
 .notif-icone.cotacao{background:#FFF3E0}
-.notif-icone.cotacao img{filter:brightness(0) saturate(100%) invert(35%) sepia(90%) saturate(500%) hue-rotate(15deg)}
 .notif-icone.alerta{background:#FCE4EC}
-.notif-icone.alerta img{filter:brightness(0) saturate(100%) invert(20%) sepia(80%) saturate(600%) hue-rotate(310deg)}
 .notif-icone.sistema{background:#F5F5F5}
-.notif-icone.sistema img{filter:brightness(0) saturate(0) brightness(.4)}
 
 /* Conteúdo do item */
 .notif-item-conteudo{flex:1;min-width:0}
@@ -532,7 +540,14 @@ body.sidebar-retraida .conteudo{margin-left:var(--sb-min)}
   text-decoration:none;
 }
 .notif-link-ref:hover{background:rgba(145,51,210,.18);color:var(--media)}
-.notif-link-ref img{width:11px;filter:brightness(0) saturate(100%) invert(30%) sepia(80%) saturate(600%) hue-rotate(260deg)}
+.notif-link-img{
+  width: 11px; height: 11px;
+  background-color: var(--media);
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-size: contain;
+  mask-repeat: no-repeat;
+}
 
 /* Rodapé do detalhe — ações */
 .notif-detalhe-footer{

@@ -13,8 +13,9 @@
   </div>
   <form method="GET" action="<?= BASE_URL ?>/categorias">
     <div class="filtros-campos">
+      <div class="campo-filtro"><label>Cód. Categoria</label><input type="text" name="codigo" value="<?= Auxiliares::escapar($filtros['codigo']??'') ?>" placeholder="CAT-..."></div>
       <div class="campo-filtro"><label>Nome</label><input type="text" name="nome" value="<?= Auxiliares::escapar($filtros['nome']??'') ?>" placeholder="Nome da categoria..."></div>
-      <div class="campo-filtro"><label>Situação</label>
+      <div class="campo-filtro"><label>Status</label>
         <select name="situacao">
           <option value="">Todas</option>
           <option value="ativo"   <?= ($filtros['situacao']??'')==='ativo'?'selected':'' ?>>Ativa</option>
@@ -34,7 +35,7 @@
     <button class="btn btn-primario" onclick="Scopi.abrirCadastro('modalCategoria','formCategoria')">
       <img src="<?= BASE_URL ?>/public/assets/icons/iconeInserir.svg" alt=""> Nova Categoria
     </button>
-    <button class="btn btn-secundario" onclick="exportarTabela()"><img src="<?= BASE_URL ?>/public/assets/icons/iconeDownload.svg" alt=""> Exportar</button>
+    <button class="btn btn-secundario" onclick="window.open('<?= BASE_URL ?>/categorias/exportar' + window.location.search, '_blank')"><img src="<?= BASE_URL ?>/public/assets/icons/iconeDownload.svg" alt=""> Exportar</button>
   </div>
   <span style="font-size:.82rem;color:#888;"><?= count($categorias) ?> registro(s)</span>
 </div>
@@ -43,17 +44,15 @@
 <div class="tabela-container">
   <table class="tabela" id="tabelaCategorias">
     <thead><tr>
-      <th><label class="checkbox-custom"><input type="checkbox" onchange="Scopi.toggleCheckboxes(this)"><img src="<?= BASE_URL ?>/public/assets/icons/iconeCheckboxVazia.svg" class="check-icone" alt=""></label></th>
-      <th>ID</th><th>Nome</th><th>Situação</th><th class="coluna-acoes"></th>
+      <th>Código</th><th>Nome</th><th>Status</th><th class="coluna-acoes"></th>
     </tr></thead>
     <tbody>
       <?php if(empty($categorias)): ?>
-        <tr><td colspan="5" style="text-align:center;padding:32px;color:#888;">Nenhuma categoria encontrada.</td></tr>
+        <tr><td colspan="4" style="text-align:center;padding:32px;color:#888;">Nenhuma categoria encontrada.</td></tr>
       <?php else: ?>
         <?php foreach($categorias as $c): ?>
         <tr>
-          <td><label class="checkbox-custom"><input type="checkbox" class="checkbox-linha" value="<?= $c['id'] ?>"><img src="<?= BASE_URL ?>/public/assets/icons/iconeCheckboxVazia.svg" class="check-icone" alt=""></label></td>
-          <td><span class="cod-clicavel" onclick="Scopi.abrirRegistro('modalCategoria','formCategoria','/categorias/dados',<?= $c['id'] ?>,'visualizar')">#<?= $c['id'] ?></span></td>
+          <td><span class="cod-clicavel" onclick="Scopi.abrirRegistro('modalCategoria','formCategoria','/categorias/dados',<?= $c['id'] ?>,'visualizar')"><?= Auxiliares::escapar($c['codigo']) ?></span></td>
           <td><?= Auxiliares::escapar($c['nome']) ?></td>
           <td><span class="badge badge-<?= $c['situacao'] ?>"><?= ucfirst($c['situacao'] === 'ativo' ? 'ativa' : 'inativa') ?></span></td>
           <td class="coluna-acoes">
@@ -72,8 +71,11 @@
 <div class="overlay-modal" id="modalCategoria">
   <div class="modal modal-estreito">
     <div class="modal-cabecalho">
-      <div class="modal-titulo"><img src="<?= BASE_URL ?>/public/assets/icons/iconeCadastro.svg" alt=""><span>Categoria</span></div>
-      <button class="btn-fechar-modal" onclick="Scopi.fecharModal('modalCategoria')"><img src="<?= BASE_URL ?>/public/assets/icons/iconeFechar.svg" alt=""></button>
+      <div class="modal-titulo"><img src="<?= BASE_URL ?>/public/assets/icons/iconeCadastro.svg" alt=""><span id="tituloModalCategoria">Cadastro de Categoria</span></div>
+      <div style="display: flex; gap: 8px;">
+          <button class="btn btn-secundario btn-historico" style="display:none; padding: 4px 8px; font-size: 0.8rem;" onclick="abrirHistorico('categorias', _idAtual)">Histórico</button>
+          <button class="btn-fechar-modal" onclick="Scopi.fecharModal('modalCategoria')"><img src="<?= BASE_URL ?>/public/assets/icons/iconeFechar.svg" alt=""></button>
+      </div>
     </div>
     <div class="modal-abas">
       <button class="aba-btn ativa" data-aba="visualizar" onclick="Scopi.ativarAba('modalCategoria','visualizar')">Visualizar</button>
@@ -82,8 +84,8 @@
     <div class="modal-corpo">
       <div class="conteudo-aba ativo" data-aba="visualizar">
         <div class="grade-visualizar">
-          <div class="campo-visualizar"><span class="rotulo">ID</span><span class="valor" data-campo="id">—</span></div>
-          <div class="campo-visualizar"><span class="rotulo">Situação</span><span class="valor"><span class="badge" data-badge="situacao">—</span></span></div>
+          <div class="campo-visualizar"><span class="rotulo">Código</span><span class="valor" data-campo="codigo">—</span></div>
+          <div class="campo-visualizar"><span class="rotulo">Status</span><span class="valor"><span class="badge" data-badge="situacao">—</span></span></div>
           <div class="campo-visualizar campo-completo"><span class="rotulo">Nome</span><span class="valor" data-campo="nome">—</span></div>
         </div>
       </div>
@@ -91,13 +93,17 @@
         <form id="formCategoria" onsubmit="event.preventDefault();Scopi.enviarFormulario('formCategoria','modalCategoria','/categorias/salvar')">
           <input type="hidden" name="id" value="0">
           <div class="grade-form" style="grid-template-columns:1fr;">
+            <div class="campo-form campo-leitura" id="blocoLeituraCategoria" style="display:none; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px;">
+                <div><label>Código</label><input type="text" data-campo="codigo" readonly class="campo-input" style="background-color: #f5f5f5;"></div>
+                <div><label>Status</label><input type="text" data-campo="situacao_texto" readonly class="campo-input" style="background-color: #f5f5f5;"></div>
+            </div>
             <div class="campo-form"><label>Nome *</label><input type="text" name="nome" required placeholder="Nome da categoria"></div>
           </div>
         </form>
       </div>
     </div>
     <div class="modal-rodape">
-      <button class="btn btn-secundario" id="btnInativar" style="margin-right:auto;" onclick="inativarCategoria()">Inativar</button>
+      <button class="btn btn-secundario" id="btnInativar" style="margin-right:auto; display:none;" onclick="inativarCategoria()">Inativar</button>
       <button class="btn btn-secundario" id="btnReativar" style="margin-right:auto; display:none;" onclick="reativarCategoria()">Reativar</button>
       <button class="btn btn-secundario" onclick="Scopi.fecharModal('modalCategoria')">Fechar</button>
       <button class="btn btn-primario btn-salvar" onclick="Scopi.enviarFormulario('formCategoria','modalCategoria','/categorias/salvar')">
@@ -129,15 +135,34 @@ Scopi.abrirRegistro = async function(idModal, idForm, url, id, aba) {
   const badgeSituacao = document.querySelector(`#${idModal} [data-badge="situacao"]`);
   const btnInativar = document.getElementById('btnInativar');
   const btnReativar = document.getElementById('btnReativar');
+  const titulo = document.getElementById('tituloModalCategoria');
+  const btnHistorico = document.querySelector(`#${idModal} .btn-historico`);
+  const blocoLeitura = document.getElementById('blocoLeituraCategoria');
+  
+  if (titulo) titulo.textContent = aba === 'editar' ? 'Edição de Cadastro de Categoria' : 'Cadastro de Categoria';
+  if (btnHistorico) btnHistorico.style.display = 'inline-flex';
+  if (blocoLeitura) blocoLeitura.style.display = 'grid';
+  
+  // Preencher campos readonly do editar
+  if (aba === 'editar') {
+      const inputCodigo = document.querySelector(`#${idModal} form [data-campo="codigo"]`);
+      const inputSituacao = document.querySelector(`#${idModal} form [data-campo="situacao_texto"]`);
+      const valCodigo = document.querySelector(`#${idModal} .grade-visualizar [data-campo="codigo"]`).textContent;
+      const valSit = badgeSituacao ? badgeSituacao.textContent : '';
+      if (inputCodigo) inputCodigo.value = valCodigo;
+      if (inputSituacao) inputSituacao.value = valSit;
+  }
   
   if (badgeSituacao && btnInativar && btnReativar) {
     const situacao = badgeSituacao.textContent.trim().toLowerCase();
     if (situacao === 'ativo' || situacao === 'ativa') {
-      btnInativar.style.display = '';
+      if (aba === 'editar') btnInativar.style.display = '';
+      else btnInativar.style.display = 'none';
       btnReativar.style.display = 'none';
     } else {
       btnInativar.style.display = 'none';
-      btnReativar.style.display = '';
+      if (aba === 'editar') btnReativar.style.display = '';
+      else btnReativar.style.display = 'none';
     }
   }
 };
@@ -145,10 +170,16 @@ Scopi.abrirRegistro = async function(idModal, idForm, url, id, aba) {
 const _abrirCadastroOriginal = Scopi.abrirCadastro.bind(Scopi);
 Scopi.abrirCadastro = function(idModal, idForm) {
   _idAtual = 0;
-  const btnInativar = document.getElementById('btnInativar');
-  const btnReativar = document.getElementById('btnReativar');
+  const titulo = document.getElementById('tituloModalCategoria');
+  const btnHistorico = document.querySelector(`#${idModal} .btn-historico`);
+  const blocoLeitura = document.getElementById('blocoLeituraCategoria');
+  
+  if (titulo) titulo.textContent = 'Cadastro de Categoria';
   if (btnInativar) btnInativar.style.display = 'none';
   if (btnReativar) btnReativar.style.display = 'none';
+  if (btnHistorico) btnHistorico.style.display = 'none';
+  if (blocoLeitura) blocoLeitura.style.display = 'none';
+  
   _abrirCadastroOriginal(idModal, idForm);
 };
 

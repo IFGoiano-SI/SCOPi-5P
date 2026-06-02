@@ -31,12 +31,26 @@ abstract class ModeloBase {
     }
 
     protected function registrarHistorico(string $tabela, int $registroId, array $anterior, array $novo, int $usuarioId): void {
-        $this->bd->prepare("\n            INSERT INTO historico_alteracoes (tabela, registro_id, dados_anteriores, dados_novos, usuario_id, criado_em)\n            VALUES (:tabela, :registro_id, :anterior, :novo, :usuario_id, NOW())\n        ")->execute([
-            ':tabela'      => $tabela,
-            ':registro_id' => $registroId,
-            ':anterior'    => json_encode($anterior),
-            ':novo'        => json_encode($novo),
+        $evento = empty($anterior) ? 'criação' : 'edição';
+        $detalhes = [];
+        if (!empty($anterior)) {
+            foreach ($novo as $campo => $valor) {
+                if (isset($anterior[$campo]) && $anterior[$campo] != $valor) {
+                    $detalhes[] = "Campo '$campo' alterado de '{$anterior[$campo]}' para '$valor'";
+                }
+            }
+        }
+        $detalhesStr = empty($detalhes) ? 'Sem detalhes' : implode('; ', $detalhes);
+        
+        $this->bd->prepare("
+            INSERT INTO historico_cadastros (entidade, entidade_id, usuario_id, evento, detalhes, data_hora)
+            VALUES (:entidade, :entidade_id, :usuario_id, :evento, :detalhes, NOW())
+        ")->execute([
+            ':entidade'      => $tabela,
+            ':entidade_id' => $registroId,
             ':usuario_id'  => $usuarioId,
+            ':evento'      => $evento,
+            ':detalhes'    => $detalhesStr
         ]);
     }
 }

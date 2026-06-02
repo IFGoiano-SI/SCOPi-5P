@@ -1,5 +1,4 @@
 RewriteEngine On
-RewriteBase /
 
 # Redireciona tudo para index.php, exceto arquivos e pastas reais
 RewriteCond %{REQUEST_FILENAME} !-f

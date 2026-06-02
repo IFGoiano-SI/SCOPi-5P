@@ -27,8 +27,8 @@ class UsuarioModelo extends ModeloBase {
         $p = [];
         if ($departamentoId) { $sql .= ' AND u.departamento_id = :dep'; $p[':dep'] = $departamentoId; }
         if (!empty($filtros['nome']))      { $sql .= ' AND u.nome LIKE :nome';      $p[':nome']      = "%{$filtros['nome']}%"; }
-        if (!empty($filtros['email']))     { $sql .= ' AND u.email LIKE :email';    $p[':email']     = "%{$filtros['email']}%"; }
-        if (!empty($filtros['perfil']))    { $sql .= ' AND u.perfil = :perfil';     $p[':perfil']    = $filtros['perfil']; }
+        if (!empty($filtros['matricula'])) { $sql .= ' AND u.matricula LIKE :matricula'; $p[':matricula'] = "%{$filtros['matricula']}%"; }
+        if (!empty($filtros['departamento_codigo'])) { $sql .= ' AND d.codigo = :depcod'; $p[':depcod'] = $filtros['departamento_codigo']; }
         if (!empty($filtros['situacao']))  { $sql .= ' AND u.situacao = :situacao'; $p[':situacao']  = $filtros['situacao']; }
         $sql .= ' ORDER BY u.nome ASC';
         $q = $this->bd->prepare($sql);
@@ -37,6 +37,7 @@ class UsuarioModelo extends ModeloBase {
     }
 
     public function cadastrar(array $dados, ?int $responsavelId = null): int {
+        $tempMatricula = uniqid('temp_');
         $this->bd->prepare("
             INSERT INTO usuarios (nome, email, senha, matricula, contato, departamento_id, perfil, situacao, tentativas_falhas, criado_em)
             VALUES (:nome, :email, :senha, :matricula, :contato, :dep, :perfil, 'ativo', 0, NOW())
@@ -44,12 +45,18 @@ class UsuarioModelo extends ModeloBase {
             ':nome'      => $dados['nome'],
             ':email'     => $dados['email'],
             ':senha'     => password_hash($dados['senha'], PASSWORD_DEFAULT),
-            ':matricula' => $dados['matricula'],
+            ':matricula' => $tempMatricula,
             ':contato'   => $dados['contato'],
             ':dep'       => $dados['departamento_id'],
             ':perfil'    => $dados['perfil'],
         ]);
         $novoId = (int) $this->bd->lastInsertId();
+        
+        $matriculaDefinitiva = '26' . str_pad($novoId, 6, '0', STR_PAD_LEFT);
+        $this->bd->prepare("UPDATE usuarios SET matricula = :matr WHERE id = :id")->execute([':matr' => $matriculaDefinitiva, ':id' => $novoId]);
+        
+        $dados['matricula'] = $matriculaDefinitiva;
+        
         if ($responsavelId) {
             // Remove password field for history privacy/security
             $dadosLimpos = $dados;
@@ -61,9 +68,9 @@ class UsuarioModelo extends ModeloBase {
 
     public function atualizar(int $id, array $dados, int $responsavelId): bool {
         $anterior = $this->buscarPorId($id);
-        $sql = "UPDATE usuarios SET nome=:nome, email=:email, matricula=:matricula,
+        $sql = "UPDATE usuarios SET nome=:nome, email=:email, 
                 contato=:contato, departamento_id=:dep, perfil=:perfil, atualizado_em=NOW()";
-        $p = [':nome'=>$dados['nome'], ':email'=>$dados['email'], ':matricula'=>$dados['matricula'],
+        $p = [':nome'=>$dados['nome'], ':email'=>$dados['email'],
               ':contato'=>$dados['contato'], ':dep'=>$dados['departamento_id'], ':perfil'=>$dados['perfil']];
         if (!empty($dados['senha'])) {
             $sql .= ', senha=:senha';

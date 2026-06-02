@@ -20,7 +20,7 @@ $flash = Auxiliares::obterFlash();
       <div style="margin-bottom:32px;">
         <img src="<?= BASE_URL ?>/public/assets/icons/iconeLogotipo.svg" alt="SCOPi" style="height:50px;filter:brightness(0) invert(1);display:block;margin:0 auto;">
       </div>
-      <p class="login-descricao">Sistema de Controle de<br>Ordens e Produto Integrado</p>
+      <p class="login-descricao">Sistema de Compras e Orçamentos<br>de Produtos Inteligente</p>
     </div>
   </div>
 

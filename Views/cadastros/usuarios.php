@@ -23,7 +23,9 @@ use Config\Auxiliares;
 </div>
 <div class="barra-acoes">
   <div class="grupo-botoes">
+    <?php if (($usuario['perfil'] ?? '') === 'administrador'): ?>
     <button class="btn btn-primario" onclick="Scopi.abrirCadastro('modalUsuario', 'formUsuario')"><img src="<?= BASE_URL ?>/public/assets/icons/iconeInserir.svg" alt=""> Novo Usuário</button>
+    <?php endif; ?>
     <button class="btn btn-secundario" onclick="exportarTabela()"><img src="<?= BASE_URL ?>/public/assets/icons/iconeDownload.svg" alt=""> Exportar</button>
   </div>
   <span style="font-size:.82rem; color:#888;"><?= count($usuarios ?? []) ?> registro(s) encontrado(s)</span>
@@ -239,6 +241,10 @@ const _abrirOriginal = Scopi.abrirRegistro.bind(Scopi);
 Scopi.abrirRegistro = async function(idModal, idForm, url, id, aba) {
   _idAtual = id;
   await _abrirOriginal(idModal, idForm, url, id, aba);
+  const btnSalvar = document.querySelector(`#${idModal} .btn-salvar`);
+  if (btnSalvar) {
+      btnSalvar.style.display = (aba === 'editar' && USER_PERFIL === 'administrador') ? 'inline-flex' : 'none';
+  }
 };
 
 function inativarUsuario() {

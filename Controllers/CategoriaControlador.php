@@ -25,6 +25,26 @@ class CategoriaControlador extends BaseController {
         $cat ? $this->json(true, '', $cat) : $this->json(false, 'Categoria não encontrada.');
     }
 
+    public function consultarCodigo(): void {
+        Auxiliares::exigirAutenticacao();
+        $codigo = trim($_GET['codigo'] ?? '');
+        if (empty($codigo)) {
+            $this->json(false, 'Código não informado.');
+            return;
+        }
+
+        $bd = \Config\BancoDados::obterInstancia()->obterConexao();
+        $q = $bd->prepare("SELECT id, nome, codigo FROM categorias WHERE codigo = :codigo AND situacao = 'ativo' LIMIT 1");
+        $q->execute([':codigo' => $codigo]);
+        $cat = $q->fetch();
+
+        if ($cat) {
+            $this->json(true, 'Sucesso', $cat);
+        } else {
+            $this->json(false, 'Categoria não encontrada ou inativa.');
+        }
+    }
+
     public function salvar(): void {
         Auxiliares::exigirPerfil('administrador', 'cadastrador');
         $responsavel = Auxiliares::usuarioLogado();
@@ -67,5 +87,24 @@ class CategoriaControlador extends BaseController {
         $id = (int)($_POST['id'] ?? 0);
         $ok = $this->modelo->reativar($id);
         $this->json($ok, $ok ? 'Categoria reativada com sucesso.' : 'Erro ao reativar categoria.');
+    }
+
+    public function exportar(): void {
+        Auxiliares::exigirAutenticacao();
+        $filtros = $_GET;
+        $categorias = $this->modelo->listarComFiltros($filtros);
+
+        $cabecalhos = ['ID', 'Nome', 'Situação', 'Criado Em'];
+        $dadosCsv = [];
+        foreach ($categorias as $c) {
+            $dadosCsv[] = [
+                $c['id'],
+                $c['nome'],
+                ucfirst($c['situacao']),
+                date('d/m/Y H:i', strtotime($c['criado_em']))
+            ];
+        }
+
+        Auxiliares::gerarCSV('categorias', $cabecalhos, $dadosCsv);
     }
 }

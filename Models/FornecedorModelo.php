@@ -18,22 +18,33 @@ class FornecedorModelo extends ModeloBase {
             WHERE f.id = :id LIMIT 1
         ");
         $q->execute([':id' => $id]);
-        return $q->fetch() ?: null;
+        $fornecedor = $q->fetch() ?: null;
+        if ($fornecedor) {
+            $fornecedor['categorias'] = $this->buscarCategorias($id);
+        }
+        return $fornecedor;
     }
 
     public function listarComFiltros(array $filtros = []): array {
         $sql = "SELECT f.*, m.razao_social AS nome_matriz,
-                       cid.nome AS nome_cidade, est.sigla AS sigla_estado
+                       cid.nome AS nome_cidade, est.sigla AS sigla_estado, pai.nome AS nome_pais
                 FROM fornecedores f
                 LEFT JOIN fornecedores m ON m.id = f.matriz_id 
                 LEFT JOIN cidades cid ON cid.id = f.cidade_id
                 LEFT JOIN estados est ON est.id = cid.estado_id
+                LEFT JOIN paises pai ON pai.id = est.pais_id
                 WHERE 1=1";
         $p = [];
-        if (!empty($filtros['nome']))        { $sql .= ' AND (f.razao_social LIKE :nome OR f.nome_fantasia LIKE :nome2)'; $p[':nome']=$p[':nome2']="%{$filtros['nome']}%"; }
-        if (!empty($filtros['cnpj']))        { $sql .= ' AND f.cnpj LIKE :cnpj';           $p[':cnpj']       = "%{$filtros['cnpj']}%"; }
-        if (!empty($filtros['categoria']))   { $sql .= ' AND f.categoria LIKE :categoria'; $p[':categoria']  = "%{$filtros['categoria']}%"; }
-        if (!empty($filtros['situacao']))    { $sql .= ' AND f.situacao = :situacao';       $p[':situacao']   = $filtros['situacao']; }
+        if (!empty($filtros['codigo']))      { $sql .= ' AND f.codigo LIKE :codigo';             $p[':codigo']      = "%{$filtros['codigo']}%"; }
+        if (!empty($filtros['razao_social'])) { $sql .= ' AND f.razao_social LIKE :razao';       $p[':razao']       = "%{$filtros['razao_social']}%"; }
+        if (!empty($filtros['nome_fantasia'])) { $sql .= ' AND f.nome_fantasia LIKE :fantasia';  $p[':fantasia']    = "%{$filtros['nome_fantasia']}%"; }
+        if (!empty($filtros['cnpj']))        { $sql .= ' AND f.cnpj LIKE :cnpj';                 $p[':cnpj']        = "%{$filtros['cnpj']}%"; }
+        if (!empty($filtros['cidade_uf']))   { 
+            $sql .= ' AND (cid.nome LIKE :cidade_uf OR est.sigla LIKE :cidade_uf OR pai.nome LIKE :cidade_uf)'; 
+            $p[':cidade_uf'] = "%{$filtros['cidade_uf']}%"; 
+        }
+        if (!empty($filtros['categoria_id'])) { $sql .= ' AND f.id IN (SELECT fornecedor_id FROM fornecedor_categorias WHERE categoria_id = :cat_id)'; $p[':cat_id'] = (int)$filtros['categoria_id']; }
+        if (!empty($filtros['situacao']))    { $sql .= ' AND f.situacao = :situacao';            $p[':situacao']    = $filtros['situacao']; }
         $sql .= ' ORDER BY f.razao_social ASC';
         $q = $this->bd->prepare($sql); $q->execute($p);
         return $q->fetchAll();
@@ -43,6 +54,12 @@ class FornecedorModelo extends ModeloBase {
         $q = $this->bd->prepare("SELECT id, razao_social, cnpj FROM fornecedores WHERE tipo = 'matriz' AND situacao = 'ativo' ORDER BY razao_social");
         $q->execute();
         return $q->fetchAll();
+    }
+
+    public function buscarMatrizPorCodigo(string $codigo): ?array {
+        $q = $this->bd->prepare("SELECT id, razao_social FROM fornecedores WHERE codigo = :codigo AND tipo = 'matriz' AND situacao = 'ativo' LIMIT 1");
+        $q->execute([':codigo' => $codigo]);
+        return $q->fetch() ?: null;
     }
 
     public function garantirLocalidade(array $dadosLocalidade): int {
@@ -174,8 +191,8 @@ class FornecedorModelo extends ModeloBase {
     public function cadastrar(array $dados, ?int $responsavelId = null): int {
         $codigo = 'FOR-' . strtoupper(substr(md5(uniqid()), 0, 6));
         $this->bd->prepare("
-            INSERT INTO fornecedores (razao_social, nome_fantasia, cnpj, inscricao_estadual, logradouro, numero, complemento, bairro, cep, cidade_id, email, contato, responsavel, categoria, codigo, tipo, matriz_id, situacao, criado_em)
-            VALUES (:rs,:nf,:cnpj,:ie,:log,:num,:compl,:bairro,:cep,:cidade_id,:email,:contato,:resp,:cat,:cod,:tipo,:matriz_id,'ativo',NOW())
+            INSERT INTO fornecedores (razao_social, nome_fantasia, cnpj, inscricao_estadual, logradouro, numero, complemento, bairro, cep, cidade_id, email, contato, responsavel, codigo, tipo, matriz_id, situacao, criado_em)
+            VALUES (:rs,:nf,:cnpj,:ie,:log,:num,:compl,:bairro,:cep,:cidade_id,:email,:contato,:resp,:cod,:tipo,:matriz_id,'ativo',NOW())
         ")->execute([
             ':rs' => $dados['razao_social'],
             ':nf' => $dados['nome_fantasia'] ?? null,
@@ -190,12 +207,15 @@ class FornecedorModelo extends ModeloBase {
             ':email' => $dados['email'] ?? null,
             ':contato' => $dados['contato'] ?? null,
             ':resp' => $dados['responsavel'] ?? null,
-            ':cat' => $dados['categoria'] ?? null,
             ':cod' => $codigo,
             ':tipo' => $dados['tipo'] ?? 'matriz',
             ':matriz_id' => $dados['matriz_id'] ?? null
         ]);
         $novoId = (int) $this->bd->lastInsertId();
+        // Salvar categorias N:N (RF05/RF08)
+        if (!empty($dados['categorias'])) {
+            $this->salvarCategorias($novoId, $dados['categorias']);
+        }
         if ($responsavelId) {
             $this->registrarHistorico($this->tabela, $novoId, [], $dados, $responsavelId);
         }
@@ -208,7 +228,7 @@ class FornecedorModelo extends ModeloBase {
             UPDATE fornecedores SET 
                 razao_social=:rs, nome_fantasia=:nf, cnpj=:cnpj, inscricao_estadual=:ie,
                 logradouro=:log, numero=:num, complemento=:compl, bairro=:bairro, cep=:cep, cidade_id=:cidade_id,
-                email=:email, contato=:contato, responsavel=:resp, categoria=:cat, 
+                email=:email, contato=:contato, responsavel=:resp,
                 tipo=:tipo, matriz_id=:matriz_id, atualizado_em=NOW() 
             WHERE id=:id
         ")->execute([
@@ -225,7 +245,6 @@ class FornecedorModelo extends ModeloBase {
             ':email' => $dados['email'] ?? null,
             ':contato' => $dados['contato'] ?? null,
             ':resp' => $dados['responsavel'] ?? null,
-            ':cat' => $dados['categoria'] ?? null,
             ':tipo' => $dados['tipo'] ?? 'matriz',
             ':matriz_id' => $dados['matriz_id'] ?? null,
             ':id' => $id
@@ -233,6 +252,57 @@ class FornecedorModelo extends ModeloBase {
         if ($ok && $anterior) {
             $this->registrarHistorico($this->tabela, $id, $anterior, $dados, $responsavelId);
         }
+        // Atualizar categorias N:N (RF05/RF08)
+        if (isset($dados['categorias'])) {
+            $this->salvarCategorias($id, $dados['categorias']);
+        }
         return $ok;
+    }
+
+    /**
+     * RF05/RF08: Salvar categorias do fornecedor (relação N:N)
+     */
+    public function salvarCategorias(int $fornecedorId, array $categoriaIds): void {
+        $this->bd->prepare("DELETE FROM fornecedor_categorias WHERE fornecedor_id = :fid")->execute([':fid' => $fornecedorId]);
+        $q = $this->bd->prepare("INSERT INTO fornecedor_categorias (fornecedor_id, categoria_id) VALUES (:fid, :cid)");
+        foreach ($categoriaIds as $catId) {
+            $catId = (int)$catId;
+            if ($catId > 0) {
+                $q->execute([':fid' => $fornecedorId, ':cid' => $catId]);
+            }
+        }
+    }
+
+    /**
+     * RF05: Buscar categorias vinculadas ao fornecedor
+     */
+    public function buscarCategorias(int $fornecedorId): array {
+        $q = $this->bd->prepare("
+            SELECT c.id, c.nome
+            FROM categorias c
+            INNER JOIN fornecedor_categorias fc ON fc.categoria_id = c.id
+            WHERE fc.fornecedor_id = :fid
+            ORDER BY c.nome
+        ");
+        $q->execute([':fid' => $fornecedorId]);
+        return $q->fetchAll();
+    }
+
+    /**
+     * RF10: Listar fornecedores ativos por correspondência de categorias
+     * Usado na sugestão automática de fornecedores ao criar cotação
+     */
+    public function listarPorCategorias(array $categoriaIds): array {
+        if (empty($categoriaIds)) return [];
+        $placeholders = implode(',', array_fill(0, count($categoriaIds), '?'));
+        $q = $this->bd->prepare("
+            SELECT DISTINCT f.id, f.razao_social, f.nome_fantasia, f.cnpj, f.email
+            FROM fornecedores f
+            INNER JOIN fornecedor_categorias fc ON fc.fornecedor_id = f.id
+            WHERE fc.categoria_id IN ({$placeholders}) AND f.situacao = 'ativo'
+            ORDER BY f.razao_social
+        ");
+        $q->execute($categoriaIds);
+        return $q->fetchAll();
     }
 }

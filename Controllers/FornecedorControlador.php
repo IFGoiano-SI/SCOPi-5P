@@ -8,12 +8,25 @@ class FornecedorControlador extends BaseController {
         $filtros = $_GET;
         $fornecedores = $this->m->listarComFiltros($filtros);
         $matrizes = $this->m->listarMatrizes();
-        $this->renderizar('cadastros/fornecedores', compact('fornecedores','filtros','matrizes'));
+        // Carregar categorias para o formulário (RF05/RF08)
+        $bd = \Config\BancoDados::obterInstancia()->obterConexao();
+        $categorias = $bd->query("SELECT id, nome FROM categorias ORDER BY nome")->fetchAll();
+        $this->renderizar('cadastros/fornecedores', compact('fornecedores','filtros','matrizes','categorias'));
     }
     public function dados(): void { 
         Auxiliares::exigirPerfil('administrador', 'cadastrador', 'comprador', 'gerente', 'usuario', 'contabilidade'); 
         $r = $this->m->buscarPorId((int)($_GET['id'] ?? 0)); 
         $r ? $this->json(true,'',$r) : $this->json(false,'Não encontrado.'); 
+    }
+    public function consultarCodigo(): void {
+        $codigo = trim($_GET['codigo'] ?? '');
+        if (empty($codigo)) { $this->json(false, 'Código inválido.'); return; }
+        $matriz = $this->m->buscarMatrizPorCodigo($codigo);
+        if ($matriz) {
+            $this->json(true, '', $matriz);
+        } else {
+            $this->json(false, 'Matriz não encontrada ou inativa.');
+        }
     }
     public function salvar(): void {
         Auxiliares::exigirPerfil('administrador','cadastrador');
@@ -21,8 +34,10 @@ class FornecedorControlador extends BaseController {
         $dados = array_intersect_key($_POST, array_flip([
             'razao_social','nome_fantasia','cnpj','inscricao_estadual',
             'logradouro','numero','complemento','bairro','cep',
-            'email','contato','responsavel','categoria','tipo','matriz_id'
+            'email','contato','responsavel','tipo','matriz_id'
         ]));
+        // RF05/RF08: categorias N:N
+        $dados['categorias'] = $_POST['categorias'] ?? [];
         
         if (empty($dados['razao_social'])) { $this->json(false,'Razão social obrigatória.'); return; }
         if (empty($dados['cnpj'])) { $this->json(false,'CNPJ obrigatório.'); return; }
@@ -117,6 +132,47 @@ class FornecedorControlador extends BaseController {
         }
 
         $this->json(false, 'Não foi possível consultar o CNPJ no momento. Tente novamente ou digite manualmente.');
+    }
+
+    public function consultarCodigo(): void {
+        Auxiliares::exigirAutenticacao();
+        $codigo = trim($_GET['codigo'] ?? '');
+        if ($codigo === '') {
+            $this->json(false, 'Código não informado.'); return;
+        }
+        $bd = \Config\BancoDados::obterInstancia()->obterConexao();
+        $q = $bd->prepare("SELECT id, razao_social as nome FROM fornecedores WHERE codigo = :codigo AND situacao = 'ativo'");
+        $q->execute([':codigo' => $codigo]);
+        $res = $q->fetch(\PDO::FETCH_ASSOC);
+        if ($res) {
+            $this->json(true, '', $res);
+        } else {
+            $this->json(false, 'Fornecedor não encontrado ou inativo.');
+        }
+    }
+
+    public function exportar(): void {
+        Auxiliares::exigirPerfil('administrador', 'cadastrador', 'comprador', 'gerente', 'usuario', 'contabilidade');
+        $filtros = $_GET;
+        $fornecedores = $this->m->listarComFiltros($filtros);
+
+        $cabecalhos = ['ID', 'Razão Social', 'CNPJ', 'Email', 'Contato', 'Tipo', 'Matriz', 'Situação', 'Criado Em'];
+        $dadosCsv = [];
+        foreach ($fornecedores as $f) {
+            $dadosCsv[] = [
+                $f['id'],
+                $f['razao_social'],
+                $f['cnpj'],
+                $f['email'],
+                $f['contato'],
+                ucfirst($f['tipo']),
+                $f['nome_matriz'] ?? '-',
+                ucfirst($f['situacao']),
+                date('d/m/Y H:i', strtotime($f['criado_em']))
+            ];
+        }
+
+        Auxiliares::gerarCSV('fornecedores', $cabecalhos, $dadosCsv);
     }
 }
 

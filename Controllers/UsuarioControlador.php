@@ -39,6 +39,26 @@ class UsuarioControlador extends BaseController {
         $usuario ? $this->json(true, '', $usuario) : $this->json(false, 'Nao encontrado.');
     }
 
+    public function consultarMatricula(): void {
+        Auxiliares::exigirAutenticacao();
+        $matricula = trim($_GET['matricula'] ?? '');
+        if (empty($matricula)) {
+            $this->json(false, 'Matrícula não informada.');
+            return;
+        }
+
+        $bd = \Config\BancoDados::obterInstancia()->obterConexao();
+        $q = $bd->prepare("SELECT id, nome, matricula FROM usuarios WHERE matricula = :matricula AND situacao = 'ativo' LIMIT 1");
+        $q->execute([':matricula' => $matricula]);
+        $usu = $q->fetch();
+
+        if ($usu) {
+            $this->json(true, 'Sucesso', $usu);
+        } else {
+            $this->json(false, 'Usuário não encontrado ou inativo.');
+        }
+    }
+
     public function salvar(): void {
         Auxiliares::exigirPerfil('administrador');
         $responsavel = Auxiliares::usuarioLogado();
@@ -111,5 +131,31 @@ class UsuarioControlador extends BaseController {
             \Config\Notificador::enviarEmail($usuario['email'], "Cadastro Reativado - SCOPi", "Olá {$usuario['nome']},\n\nSeu cadastro no sistema SCOPi foi reativado.");
         }
         $this->json($ok, $ok ? 'Reativado.' : 'Erro.');
+    }
+
+    public function exportar(): void {
+        Auxiliares::exigirPerfil('administrador', 'gerente');
+        $usuario = Auxiliares::usuarioLogado();
+        $filtros = $_GET;
+        $departamentoId = ($usuario['perfil'] ?? '') === 'gerente' ? (int) $usuario['departamento_id'] : null;
+        $usuarios = $this->modelo->listarComFiltros($filtros, $departamentoId);
+
+        $cabecalhos = ['ID', 'Nome', 'Matrícula', 'E-mail', 'Contato', 'Perfil', 'Departamento', 'Situação', 'Criado Em'];
+        $dadosCsv = [];
+        foreach ($usuarios as $u) {
+            $dadosCsv[] = [
+                $u['id'],
+                $u['nome'],
+                $u['matricula'],
+                $u['email'],
+                $u['contato'],
+                ucfirst($u['perfil']),
+                $u['nome_departamento'],
+                ucfirst($u['situacao']),
+                date('d/m/Y H:i', strtotime($u['criado_em']))
+            ];
+        }
+
+        Auxiliares::gerarCSV('usuarios', $cabecalhos, $dadosCsv);
     }
 }
