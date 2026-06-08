@@ -24,14 +24,17 @@ class OrdemCompraModelo extends ModeloBase {
     }
 
     public function listarComFiltros(array $filtros = []): array {
-        $sql = "SELECT oc.*, f.razao_social AS nome_fornecedor
+        $sql = "SELECT oc.*, f.razao_social AS nome_fornecedor, f.codigo AS codigo_fornecedor
                 FROM ordens_compra oc
                 LEFT JOIN fornecedores f ON f.id = oc.fornecedor_id
                 WHERE 1=1";
         $p = [];
-        if (!empty($filtros['numero']))  { $sql .= ' AND oc.numero LIKE :num';    $p[':num']    = "%{$filtros['numero']}%"; }
-        if (!empty($filtros['status']))  { $sql .= ' AND oc.status = :status';    $p[':status'] = $filtros['status']; }
-        if (!empty($filtros['periodo'])) { $sql .= ' AND DATE(oc.emitido_em)>=:per'; $p[':per'] = $filtros['periodo']; }
+        if (!empty($filtros['numero']))           { $sql .= ' AND oc.numero LIKE :num';           $p[':num']    = "%{$filtros['numero']}%"; }
+        if (!empty($filtros['status']))           { $sql .= ' AND oc.status = :status';           $p[':status'] = $filtros['status']; }
+        if (!empty($filtros['periodo']))          { $sql .= ' AND DATE(oc.emitido_em) >= :per';   $p[':per']    = $filtros['periodo']; }
+        if (!empty($filtros['data_inicial']))     { $sql .= ' AND DATE(oc.emitido_em) >= :dti';   $p[':dti']    = $filtros['data_inicial']; }
+        if (!empty($filtros['data_final']))       { $sql .= ' AND DATE(oc.emitido_em) <= :dtf';   $p[':dtf']    = $filtros['data_final']; }
+        if (!empty($filtros['fornecedor_codigo'])) { $sql .= ' AND f.codigo = :fcod';             $p[':fcod']   = $filtros['fornecedor_codigo']; }
         $sql .= ' ORDER BY oc.criado_em DESC';
         $q = $this->bd->prepare($sql); $q->execute($p);
         return $q->fetchAll();
@@ -42,7 +45,6 @@ class OrdemCompraModelo extends ModeloBase {
         $fornecedorId = (int)$dados['fornecedor_id'];
         $condicaoPagamento = trim($dados['condicao_pagamento'] ?? '');
         $modalidadeFrete = trim($dados['modalidade_frete'] ?? '');
-        $prazoEntrega = trim($dados['prazo_entrega'] ?? '');
         $observacao = trim($dados['observacao'] ?? '');
         $valorTotal = (float)($dados['valor_total'] ?? 0);
 
@@ -53,17 +55,15 @@ class OrdemCompraModelo extends ModeloBase {
                     fornecedor_id = :fid,
                     condicao_pagamento = :cond,
                     modalidade_frete = :frete,
-                    prazo_entrega = :prazo,
                     observacao = :obs,
                     valor_total = :total,
                     atualizado_em = NOW()
-                WHERE id = :id AND status = 'aberta'
+                WHERE id = :id AND status = 'aberto'
             ");
             $q->execute([
                 ':fid' => $fornecedorId,
                 ':cond' => $condicaoPagamento,
                 ':frete' => $modalidadeFrete,
-                ':prazo' => $prazoEntrega,
                 ':obs' => $observacao,
                 ':total' => $valorTotal,
                 ':id' => $id
@@ -71,19 +71,22 @@ class OrdemCompraModelo extends ModeloBase {
             $this->registrarHistorico($this->tabela, $id, $anterior, $dados, $usuarioId);
             return $id;
         } else {
-            $numero = 'OC-' . date('Ymd') . '-' . rand(1000, 9999);
+            $qMax = $this->bd->prepare("SELECT MAX(CAST(numero AS UNSIGNED)) FROM ordens_compra");
+            $qMax->execute();
+            $maxNum = (int)$qMax->fetchColumn() ?? 0;
+            $numero = str_pad($maxNum + 1, 6, '0', STR_PAD_LEFT);
             $solicitacaoId = !empty($dados['solicitacao_id']) ? (int)$dados['solicitacao_id'] : null;
             $cotacaoId = !empty($dados['cotacao_id']) ? (int)$dados['cotacao_id'] : null;
 
             $q = $this->bd->prepare("
                 INSERT INTO ordens_compra (
                     numero, cotacao_id, solicitacao_id, fornecedor_id,
-                    condicao_pagamento, modalidade_frete, prazo_entrega,
+                    condicao_pagamento, modalidade_frete,
                     observacao, valor_total, usuario_id, status, emitido_em, criado_em
                 ) VALUES (
                     :num, :cot_id, :sol_id, :fid,
-                    :cond, :frete, :prazo,
-                    :obs, :total, :uid, 'aberta', CURDATE(), NOW()
+                    :cond, :frete,
+                    :obs, :total, :uid, 'aberto', CURDATE(), NOW()
                 )
             ");
             $q->execute([
@@ -93,7 +96,6 @@ class OrdemCompraModelo extends ModeloBase {
                 ':fid' => $fornecedorId,
                 ':cond' => $condicaoPagamento,
                 ':frete' => $modalidadeFrete,
-                ':prazo' => $prazoEntrega,
                 ':obs' => $observacao,
                 ':total' => $valorTotal,
                 ':uid' => $usuarioId
@@ -109,28 +111,41 @@ class OrdemCompraModelo extends ModeloBase {
      */
     public function autorizar(int $id, int $aprovadorId): bool {
         $q = $this->bd->prepare("
-            UPDATE ordens_compra SET status = 'autorizada', aprovador_id = :aid, autorizado_em = NOW(), atualizado_em = NOW()
-            WHERE id = :id AND status = 'aberta'
+            UPDATE ordens_compra SET status = 'autorizado', aprovador_id = :aid, autorizado_em = NOW(), atualizado_em = NOW()
+            WHERE id = :id AND status = 'aberto'
         ");
         $q->execute([':aid' => $aprovadorId, ':id' => $id]);
         $ok = $q->rowCount() > 0;
-        if ($ok) $this->registrarHistorico($this->tabela, $id, [], ['status' => 'autorizada'], $aprovadorId);
+        if ($ok) $this->registrarHistorico($this->tabela, $id, [], ['status' => 'autorizado'], $aprovadorId);
         return $ok;
     }
 
     /**
-     * RF13: Remover autorização (se ainda não foi enviada)
+     * RF13: Remover autorização (se ainda não foi enviado)
      */
     public function desautorizar(int $id): bool {
         $q = $this->bd->prepare("
-            UPDATE ordens_compra SET status = 'aberta', aprovador_id = NULL, autorizado_em = NULL, atualizado_em = NOW()
-            WHERE id = :id AND status = 'autorizada'
+            UPDATE ordens_compra SET status = 'aberto', aprovador_id = NULL, autorizado_em = NULL, atualizado_em = NOW()
+            WHERE id = :id AND status = 'autorizado'
         ");
         $q->execute([':id' => $id]);
         $ok = $q->rowCount() > 0;
         if ($ok) {
             $usuarioId = \Config\Auxiliares::usuarioLogado()['id'] ?? 0;
-            $this->registrarHistorico($this->tabela, $id, [], ['status' => 'aberta', 'acao' => 'desautorizou'], $usuarioId);
+            $this->registrarHistorico($this->tabela, $id, [], ['status' => 'aberto', 'acao' => 'desautorizou'], $usuarioId);
+        }
+        return $ok;
+    }
+
+    public function cancelar(int $id, int $usuarioId): bool {
+        $q = $this->bd->prepare("
+            UPDATE ordens_compra SET status = 'cancelado', atualizado_em = NOW()
+            WHERE id = :id AND status IN ('aberto', 'autorizado')
+        ");
+        $q->execute([':id' => $id]);
+        $ok = $q->rowCount() > 0;
+        if ($ok) {
+            $this->registrarHistorico($this->tabela, $id, [], ['status' => 'cancelado'], $usuarioId);
         }
         return $ok;
     }
@@ -140,14 +155,14 @@ class OrdemCompraModelo extends ModeloBase {
      */
     public function enviar(int $id): bool {
         $q = $this->bd->prepare("
-            UPDATE ordens_compra SET status = 'enviada', enviado_em = NOW(), atualizado_em = NOW()
-            WHERE id = :id AND status = 'autorizada'
+            UPDATE ordens_compra SET status = 'enviado', enviado_em = NOW(), atualizado_em = NOW()
+            WHERE id = :id AND status = 'autorizado'
         ");
         $q->execute([':id' => $id]);
         $ok = $q->rowCount() > 0;
         if ($ok) {
             $usuarioId = \Config\Auxiliares::usuarioLogado()['id'] ?? 0;
-            $this->registrarHistorico($this->tabela, $id, [], ['status' => 'enviada'], $usuarioId);
+            $this->registrarHistorico($this->tabela, $id, [], ['status' => 'enviado'], $usuarioId);
         }
         return $ok;
     }
@@ -197,11 +212,11 @@ class OrdemCompraModelo extends ModeloBase {
         $parciais = (int)$r['parciais'];
 
         if ($cancelados === $total) {
-            $novoStatus = 'cancelada';
+            $novoStatus = 'cancelado';
         } elseif (($atendidos + $cancelados) === $total && $atendidos > 0) {
-            $novoStatus = 'concluida';
+            $novoStatus = 'concluido';
         } elseif ($atendidos > 0 || $parciais > 0) {
-            $novoStatus = 'parcialmente_atendida';
+            $novoStatus = 'parcialmente_atendido';
         } else {
             return; // Nenhuma mudança necessária
         }
@@ -214,32 +229,106 @@ class OrdemCompraModelo extends ModeloBase {
      * Salvar itens da ordem de compra
      */
     public function salvarItens(int $ordemId, array $itens): void {
-        // Remove itens antigos
-        $this->bd->prepare("DELETE FROM ordem_compra_itens WHERE ordem_id = :oid")->execute([':oid' => $ordemId]);
-        
-        $q = $this->bd->prepare("
-            INSERT INTO ordem_compra_itens (ordem_id, produto_id, quantidade, preco_unitario)
-            VALUES (:oid, :pid, :qtd, :preco)
-        ");
+        $qMax = $this->bd->prepare("SELECT MAX(numero_item) FROM ordem_compra_itens WHERE ordem_id = :oid");
+        $qMax->execute([':oid' => $ordemId]);
+        $maxNum = (int)$qMax->fetchColumn();
+
+        $idsManter = [];
         foreach ($itens as $item) {
-            $q->execute([
-                ':oid' => $ordemId,
-                ':pid' => (int)$item['produto_id'],
-                ':qtd' => (float)$item['quantidade'],
-                ':preco' => (float)$item['preco_unitario']
-            ]);
+            if (!empty($item['id'])) {
+                $idsManter[] = (int)$item['id'];
+            }
+        }
+
+        if (empty($idsManter)) {
+            $this->bd->prepare("DELETE FROM ordem_compra_itens WHERE ordem_id = :oid")->execute([':oid' => $ordemId]);
+        } else {
+            $placeholders = implode(',', array_fill(0, count($idsManter), '?'));
+            $qDel = $this->bd->prepare("DELETE FROM ordem_compra_itens WHERE ordem_id = ? AND id NOT IN ($placeholders)");
+            $qDel->execute(array_merge([$ordemId], $idsManter));
+        }
+
+        foreach ($itens as $item) {
+            $solItemId = !empty($item['solicitacao_item_id']) ? (int)$item['solicitacao_item_id'] : null;
+            $prazoEntrega = !empty($item['prazo_entrega']) ? $item['prazo_entrega'] : null;
+            $condPagId = !empty($item['condicao_pagamento_id']) ? (int)$item['condicao_pagamento_id'] : null;
+
+            if (!empty($item['id'])) {
+                $this->bd->prepare("UPDATE ordem_compra_itens SET quantidade = :qtd, preco_unitario = :preco, prazo_entrega = :prazo, condicao_pagamento_id = :cond_id WHERE id = :id")
+                    ->execute([
+                        ':qtd' => (float)$item['quantidade'],
+                        ':preco' => (float)$item['preco_unitario'],
+                        ':prazo' => $prazoEntrega,
+                        ':cond_id' => $condPagId,
+                        ':id' => $item['id']
+                    ]);
+            } else {
+                $maxNum++;
+                $this->bd->prepare("
+                    INSERT INTO ordem_compra_itens (ordem_id, numero_item, solicitacao_item_id, produto_id, quantidade, preco_unitario, prazo_entrega, condicao_pagamento_id)
+                    VALUES (:oid, :num, :sid, :pid, :qtd, :preco, :prazo, :cond_id)
+                ")->execute([
+                    ':oid' => $ordemId,
+                    ':num' => $maxNum,
+                    ':sid' => $solItemId,
+                    ':pid' => (int)$item['produto_id'],
+                    ':qtd' => (float)$item['quantidade'],
+                    ':preco' => (float)$item['preco_unitario'],
+                    ':prazo' => $prazoEntrega,
+                    ':cond_id' => $condPagId
+                ]);
+            }
+        }
+    }
+
+    public function excluirItem(int $itemId, int $usuarioId): bool {
+        try {
+            $this->bd->beginTransaction();
+            $q = $this->bd->prepare("SELECT ordem_id, solicitacao_item_id FROM ordem_compra_itens WHERE id = :id");
+            $q->execute([':id' => $itemId]);
+            $item = $q->fetch();
+            if (!$item) {
+                $this->bd->rollBack();
+                return false;
+            }
+
+            $ordemId = (int)$item['ordem_id'];
+            $solItemId = !empty($item['solicitacao_item_id']) ? (int)$item['solicitacao_item_id'] : null;
+
+            $qOrd = $this->bd->prepare("SELECT status FROM ordens_compra WHERE id = :oid");
+            $qOrd->execute([':oid' => $ordemId]);
+            $ordem = $qOrd->fetch();
+
+            if ($ordem['status'] !== 'aberto') {
+                $this->bd->rollBack();
+                return false;
+            }
+
+            $ok = $this->bd->prepare("DELETE FROM ordem_compra_itens WHERE id = :id")->execute([':id' => $itemId]);
+            
+            if ($ok) {
+                $this->registrarHistorico($this->tabela, $ordemId, [], ['acao' => 'Exclusão de item ID ' . $itemId], $usuarioId);
+            }
+            $this->bd->commit();
+            return $ok;
+        } catch (\Exception $e) {
+            if ($this->bd->inTransaction()) $this->bd->rollBack();
+            return false;
         }
     }
 
     /**
-     * Buscar itens de uma ordem
+     * Buscar itens de uma ordem (com prazo_entrega por item e condição de pagamento)
      */
     public function buscarItens(int $ordemId): array {
         $q = $this->bd->prepare("
-            SELECT oci.*, p.nome AS produto_nome, p.codigo AS produto_codigo
+            SELECT oci.*, p.nome AS produto_nome, p.codigo AS produto_codigo,
+                   cp.descricao AS condicao_pagamento_descricao
             FROM ordem_compra_itens oci
             LEFT JOIN produtos p ON p.id = oci.produto_id
+            LEFT JOIN condicoes_pagamento cp ON cp.id = oci.condicao_pagamento_id
             WHERE oci.ordem_id = :oid
+            ORDER BY oci.numero_item ASC
         ");
         $q->execute([':oid' => $ordemId]);
         return $q->fetchAll();

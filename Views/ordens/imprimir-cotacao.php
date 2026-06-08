@@ -79,10 +79,9 @@
                     <?php if ($hasProposta): ?>
                     <tr>
                         <th colspan="6" style="background:#f9f9f9; font-weight:normal; font-size:10px;">
-                            <strong>Condição Pagto:</strong> <?= htmlspecialchars($f['condicao_pagamento'] ?? '-') ?> | 
                             <strong>Prazo Entrega:</strong> <?= htmlspecialchars($f['prazo_entrega'] ?? '-') ?> dias | 
                             <strong>Frete:</strong> <?= htmlspecialchars($f['modalidade_frete'] ?? '-') ?> | 
-                            <strong>Impostos:</strong> R$ <?= number_format($f['impostos'] ?? 0, 2, ',', '.') ?> | 
+                            <strong>Transportadora:</strong> <?= htmlspecialchars($f['transportadora'] ?? '-') ?> | 
                             <strong>Taxas Adic.:</strong> R$ <?= number_format($f['taxas_adicionais'] ?? 0, 2, ',', '.') ?>
                         </th>
                     </tr>
@@ -92,17 +91,17 @@
                     <?php if ($hasProposta && !empty($f['itens'])): ?>
                         <tr>
                             <th style="width:10%;">Código</th>
-                            <th style="width:30%;">Produto</th>
-                            <th style="width:10%;" class="text-center">Qtd</th>
+                            <th style="width:25%;">Produto</th>
+                            <th style="width:5%;" class="text-center">Qtd</th>
                             <th style="width:15%;" class="text-right">Unitário (R$)</th>
                             <th style="width:15%;" class="text-right">Subtotal (R$)</th>
-                            <th style="width:20%;">Modelo/Obs</th>
+                            <th style="width:30%;">Cond. Pagto / Taxas / Obs</th>
                         </tr>
                         <?php 
                         $sub = 0;
                         foreach ($f['itens'] as $item): 
                             if ($item['disponivel']) {
-                                $linhaSub = $item['quantidade'] * $item['preco_unitario'];
+                                $linhaSub = ($item['quantidade'] * $item['preco_unitario']) + ($item['taxas'] ?? 0);
                                 $sub += $linhaSub;
                             } else {
                                 $linhaSub = 0;
@@ -120,6 +119,8 @@
                                 <td>
                                     <?php
                                     $obs = [];
+                                    if (!empty($item['condicao_pagamento'])) $obs[] = "Cond. Pagto: " . $item['condicao_pagamento'];
+                                    if (!empty($item['taxas']) && $item['taxas'] > 0) $obs[] = "Taxas: R$ " . number_format($item['taxas'], 2, ',', '.');
                                     if (!empty($item['modelo'])) $obs[] = "Mod: " . $item['modelo'];
                                     if (!empty($item['observacao'])) $obs[] = "Obs: " . $item['observacao'];
                                     echo htmlspecialchars(implode(" | ", $obs));
@@ -128,8 +129,8 @@
                             </tr>
                         <?php endforeach; ?>
                         <tr style="background:#f9f9f9; font-weight:bold;">
-                            <td colspan="4" class="text-right">Total da Proposta (Subtotal + Impostos + Taxas):</td>
-                            <td class="text-right">R$ <?= number_format($sub + ($f['impostos'] ?? 0) + ($f['taxas_adicionais'] ?? 0), 2, ',', '.') ?></td>
+                            <td colspan="4" class="text-right">Total da Proposta (Subtotal Itens + Taxas Globais):</td>
+                            <td class="text-right">R$ <?= number_format($sub + ($f['taxas_adicionais'] ?? 0), 2, ',', '.') ?></td>
                             <td></td>
                         </tr>
                     <?php else: ?>

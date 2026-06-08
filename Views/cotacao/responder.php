@@ -439,17 +439,17 @@ use Config\Auxiliares;
           
           <div class="campo-form">
             <label for="transportadora">Transportadora Indicada</label>
-            <input type="text" name="transportadora" id="transportadora" value="<?= htmlspecialchars($cf['transportadora'] ?? '') ?>" placeholder="Caso aplicável..." <?= $fechada ? 'readonly' : '' ?>>
+            <input type="text" name="transportadora" id="transportadora" value="<?= htmlspecialchars($cf['transportadora'] ?? '') ?>"  <?= $fechada ? 'readonly' : '' ?>>
           </div>
 
           <div class="campo-form">
             <label for="condicao_pagamento">Condição de Pagamento *</label>
-            <input type="text" name="condicao_pagamento" id="condicao_pagamento" required value="<?= htmlspecialchars($cf['condicao_pagamento'] ?? '') ?>" placeholder="Ex: 30/60/90 dias, à vista, boleto..." <?= $fechada ? 'readonly' : '' ?>>
+            <input type="text" name="condicao_pagamento" id="condicao_pagamento" required value="<?= htmlspecialchars($cf['condicao_pagamento'] ?? '') ?>"  <?= $fechada ? 'readonly' : '' ?>>
           </div>
 
           <div class="campo-form">
             <label for="prazo_entrega">Prazo de Entrega (dias) *</label>
-            <input type="number" name="prazo_entrega" id="prazo_entrega" min="0" value="<?= htmlspecialchars($cf['prazo_entrega'] ?? '') ?>" required <?= $fechada ? 'readonly' : '' ?> placeholder="dias">
+            <input type="number" name="prazo_entrega" id="prazo_entrega" min="0" value="<?= htmlspecialchars($cf['prazo_entrega'] ?? '') ?>" required <?= $fechada ? 'readonly' : '' ?> >
           </div>
 
           <div class="campo-form">
@@ -458,25 +458,13 @@ use Config\Auxiliares;
           </div>
 
           <div class="campo-form">
-            <label for="impostos">Valor Estimado de Impostos (R$)</label>
-            <input type="number" name="impostos" id="impostos" step="0.01" min="0" value="<?= htmlspecialchars($cf['impostos'] ?? '0.00') ?>" class="calcula-total" <?= $fechada ? 'readonly' : '' ?>>
-          </div>
-
-          <div class="campo-form">
-            <label for="taxas_adicionais">Outras Despesas / Taxas (R$)</label>
-            <input type="number" name="taxas_adicionais" id="taxas_adicionais" step="0.01" min="0" value="<?= htmlspecialchars($cf['taxas_adicionais'] ?? '0.00') ?>" class="calcula-total" <?= $fechada ? 'readonly' : '' ?>>
-          </div>
-
-
-
-          <div class="campo-form">
-            <label for="garantia">Garantia Oferecida</label>
-            <input type="text" name="garantia" id="garantia" value="<?= htmlspecialchars($cf['garantia'] ?? '') ?>" placeholder="Ex: 12 meses do fabricante..." <?= $fechada ? 'readonly' : '' ?>>
+            <label for="cnpj_transportadora">CNPJ da Transportadora</label>
+            <input type="text" name="cnpj_transportadora" id="cnpj_transportadora" value="<?= htmlspecialchars($cf['cnpj_transportadora'] ?? '') ?>"  <?= $fechada ? 'readonly' : '' ?>>
           </div>
 
           <div class="campo-form campo-completo">
             <label for="observacao">Observações Gerais</label>
-            <textarea name="observacao" id="observacao" rows="3" placeholder="Insira quaisquer observações adicionais sobre sua proposta comercial..." <?= $fechada ? 'readonly' : '' ?>><?= htmlspecialchars($cf['observacao'] ?? '') ?></textarea>
+            <textarea name="observacao" id="observacao" rows="3"  <?= $fechada ? 'readonly' : '' ?>><?= htmlspecialchars($cf['observacao'] ?? '') ?></textarea>
           </div>
         </div>
 
@@ -493,12 +481,15 @@ use Config\Auxiliares;
                 <th style="width: 50px; text-align: center;">Disp.</th>
                 <th style="width: 90px;">Código</th>
                 <th>Nome do Produto</th>
-                <th style="width: 130px;">Modelo Ofertado</th>
-                <th style="width: 80px; text-align: center;">Quantidade</th>
-                <th style="width: 130px;">Preço Unitário (R$) *</th>
-                <th style="width: 100px;">Prazo Entrega (dias) *</th>
-                <th style="width: 110px; text-align: right;">Subtotal (R$)</th>
-                <th style="width: 160px;">Observação do Item</th>
+                <th style="width: 120px;">Modelo Ofertado</th>
+                <th style="width: 70px; text-align: center;">Qtd</th>
+                <th style="width: 110px;">Preço Unit. (R$) *</th>
+                <th style="width: 90px;">Taxas (R$)</th>
+                <th style="width: 130px;">Cond. Pagamento</th>
+                <th style="width: 110px;">Garantia</th>
+                <th style="width: 80px;">Prazo *</th>
+                <th style="width: 100px; text-align: right;">Subtotal</th>
+                <th style="width: 130px;">Obs do Item</th>
               </tr>
             </thead>
             <tbody>
@@ -506,6 +497,9 @@ use Config\Auxiliares;
                 $prop = $propostasMapeadas[$item['produto_id']] ?? null;
                 $precoUnit = $prop ? $prop['preco_unitario'] : '';
                 $prazo = $prop ? $prop['prazo_entrega'] : '';
+                $taxasItem = $prop ? ($prop['taxas'] ?? '') : '';
+                $garantiaItem = $prop ? ($prop['garantia'] ?? '') : '';
+                $condPagamentoItem = $prop ? ($prop['condicao_pagamento'] ?? '') : '';
                 $obsItem = $prop ? ($prop['observacao'] ?? '') : '';
                 $modeloItem = $prop ? ($prop['modelo'] ?? '') : '';
                 $disponivel = $prop ? (int)($prop['disponivel'] ?? 1) : 1;
@@ -523,15 +517,15 @@ use Config\Auxiliares;
                            style="width: 18px; height: 18px; accent-color: var(--media);"
                            title="Marque se possui este item">
                   </td>
-                  <td style="font-weight: 500;"><?= htmlspecialchars($item['codigo_produto']) ?></td>
-                  <td><?= htmlspecialchars($item['nome_produto']) ?></td>
+                  <td style="font-weight: 500; font-size: 0.85rem;"><?= htmlspecialchars($item['codigo_produto']) ?></td>
+                  <td style="font-size: 0.85rem;"><?= htmlspecialchars($item['nome_produto']) ?></td>
                   <td>
                     <input type="text" 
                            name="itens[<?= $item['produto_id'] ?>][modelo]" 
                            class="input-tabela" 
                            value="<?= htmlspecialchars($modeloItem) ?>" 
                            <?= $fechada ? 'readonly' : '' ?> 
-                           placeholder="Modelo...">
+                           >
                   </td>
                   <td style="text-align: center; font-weight: 600;" class="item-qtd"><?= (int)$item['quantidade'] ?></td>
                   <td>
@@ -542,7 +536,35 @@ use Config\Auxiliares;
                            min="0.01" 
                            value="<?= $precoUnit ?>" 
                            <?= $fechada ? 'readonly' : '' ?> 
-                           placeholder="0.00">
+                           >
+                  </td>
+                  <td>
+                    <input type="number" 
+                           name="itens[<?= $item['produto_id'] ?>][taxas]" 
+                           class="input-tabela item-taxas calcula-total" 
+                           step="0.01" 
+                           min="0" 
+                           value="<?= $taxasItem ?>" 
+                           <?= $fechada ? 'readonly' : '' ?> 
+                           >
+                  </td>
+                  <td>
+                    <select name="itens[<?= $item['produto_id'] ?>][condicao_pagamento]" class="input-tabela" <?= $fechada ? 'disabled' : '' ?>>
+                      <option value="">Selecione...</option>
+                      <?php foreach ($condicoesPagamento as $cp): ?>
+                        <option value="<?= htmlspecialchars($cp['codigo'] . ' - ' . $cp['descricao']) ?>" <?= $condPagamentoItem === ($cp['codigo'] . ' - ' . $cp['descricao']) ? 'selected' : '' ?>>
+                          <?= htmlspecialchars($cp['descricao']) ?>
+                        </option>
+                      <?php endforeach; ?>
+                    </select>
+                  </td>
+                  <td>
+                    <input type="text" 
+                           name="itens[<?= $item['produto_id'] ?>][garantia]" 
+                           class="input-tabela" 
+                           value="<?= htmlspecialchars($garantiaItem) ?>" 
+                           <?= $fechada ? 'readonly' : '' ?> 
+                           >
                   </td>
                   <td>
                     <input type="number" 
@@ -551,7 +573,7 @@ use Config\Auxiliares;
                            min="0" 
                            value="<?= $prazo ?>" 
                            <?= $fechada ? 'readonly' : '' ?> 
-                           placeholder="dias">
+                           >
                   </td>
                   <td style="text-align: right; font-weight: 600; color: var(--media);" class="item-subtotal">
                     R$ <?= number_format($subtotal, 2, ',', '.') ?>
@@ -562,7 +584,7 @@ use Config\Auxiliares;
                            class="input-tabela" 
                            value="<?= htmlspecialchars($obsItem) ?>" 
                            <?= $fechada ? 'readonly' : '' ?> 
-                           placeholder="Obs do item...">
+                           >
                   </td>
                 </tr>
               <?php endforeach; ?>
@@ -634,26 +656,34 @@ use Config\Auxiliares;
     function calcularTotais() {
       let subtotalItens = 0;
 
+      let subtotalTaxas = 0;
+
       document.querySelectorAll('.item-linha').forEach(linha => {
         const cbDisp = linha.querySelector('.item-disponivel');
         const disponivel = cbDisp ? cbDisp.checked : true;
         const qtd = parseFloat(linha.querySelector('.item-qtd').textContent) || 0;
         const precoInput = linha.querySelector('.item-preco');
         const preco = parseFloat(precoInput.value) || 0;
+        const taxasInput = linha.querySelector('.item-taxas');
+        const taxa = parseFloat(taxasInput ? taxasInput.value : 0) || 0;
         
-        // Se não disponível, preço e prazo ficam opcionais (visuais)
+        // Se não disponível, opacidade visual
         const precoField = linha.querySelector('.item-preco');
         const prazoField = linha.querySelector('.item-prazo');
         if (!disponivel) {
-          precoField.style.opacity = '0.4';
-          prazoField.style.opacity = '0.4';
+          if (precoField) precoField.style.opacity = '0.4';
+          if (prazoField) prazoField.style.opacity = '0.4';
         } else {
-          precoField.style.opacity = '1';
-          prazoField.style.opacity = '1';
+          if (precoField) precoField.style.opacity = '1';
+          if (prazoField) prazoField.style.opacity = '1';
         }
         
         const sub = disponivel ? Math.max(0, qtd * preco) : 0;
         subtotalItens += sub;
+        
+        if (disponivel) {
+            subtotalTaxas += taxa;
+        }
 
         const cellSubtotal = linha.querySelector('.item-subtotal');
         if (cellSubtotal) {
@@ -661,14 +691,11 @@ use Config\Auxiliares;
         }
       });
 
-      const impostos = parseFloat(document.getElementById('impostos').value) || 0;
-      const taxas = parseFloat(document.getElementById('taxas_adicionais').value) || 0;
-
-      const totalGeral = Math.max(0, subtotalItens + impostos + taxas);
+      const totalGeral = Math.max(0, subtotalItens + subtotalTaxas);
 
       document.getElementById('tot-subtotal').textContent = formatarMoeda(subtotalItens);
-      document.getElementById('tot-impostos').textContent = formatarMoeda(impostos);
-      document.getElementById('tot-taxas').textContent = formatarMoeda(taxas);
+      document.getElementById('tot-impostos').parentElement.style.display = 'none'; // removido impostos globais
+      document.getElementById('tot-taxas').textContent = formatarMoeda(subtotalTaxas);
       document.getElementById('tot-geral').textContent = formatarMoeda(totalGeral);
     }
 
@@ -702,6 +729,7 @@ use Config\Auxiliares;
         
         const resp = await fetch(url, {
           method: 'POST',
+          credentials: 'include',
           body: formData,
           headers: {
             'X-Requested-With': 'XMLHttpRequest'

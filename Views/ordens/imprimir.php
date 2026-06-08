@@ -59,7 +59,7 @@
         <div class="info-item"><strong>Fornecedor:</strong> <?= htmlspecialchars($ordem['nome_fornecedor'] ?? '-') ?></div>
         <div class="info-item"><strong>Status:</strong> <?= htmlspecialchars(ucfirst(str_replace('_', ' ', $ordem['status'] ?? ''))) ?></div>
         
-        <div class="info-item"><strong>Condição de Pagto:</strong> <?= htmlspecialchars($ordem['condicao_pagamento'] ?? '-') ?></div>
+        <div class="info-item"><strong>Transportadora:</strong> <?= htmlspecialchars($ordem['transportadora'] ?? '-') ?></div>
         <div class="info-item"><strong>Prazo de Entrega:</strong> <?= htmlspecialchars($ordem['prazo_entrega'] ?? '-') ?></div>
         
         <div class="info-item"><strong>Modalidade Frete:</strong> <?= htmlspecialchars($ordem['modalidade_frete'] ?? '-') ?></div>
@@ -74,10 +74,12 @@
     <table>
         <thead>
             <tr>
+                <th style="width: 50px;">Nº Item</th>
                 <th style="width: 80px;">Código</th>
                 <th>Produto</th>
                 <th style="width: 80px;" class="text-center">Qtd</th>
                 <th style="width: 100px;" class="text-right">Preço Unit. (R$)</th>
+                <th style="width: 120px;" class="text-right">Cond. Pagto</th>
                 <th style="width: 100px;" class="text-right">Subtotal (R$)</th>
                 <th style="width: 100px;" class="text-center">Status</th>
             </tr>
@@ -91,10 +93,12 @@
                     $subtotalGeral += $sub;
             ?>
                 <tr>
+                    <td class="text-center"><?= htmlspecialchars($item['numero_item'] ?? '-') ?></td>
                     <td><?= htmlspecialchars($item['produto_codigo'] ?? '') ?></td>
                     <td><?= htmlspecialchars($item['produto_nome'] ?? 'Produto não encontrado') ?></td>
                     <td class="text-center"><?= (float)$item['quantidade'] ?></td>
                     <td class="text-right"><?= number_format($item['preco_unitario'], 2, ',', '.') ?></td>
+                    <td class="text-right"><?= htmlspecialchars($item['condicao_pagamento'] ?? '-') ?></td>
                     <td class="text-right"><?= number_format($sub, 2, ',', '.') ?></td>
                     <td class="text-center"><?= ucfirst(htmlspecialchars($item['status_item'])) ?></td>
                 </tr>

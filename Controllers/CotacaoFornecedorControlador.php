@@ -35,13 +35,14 @@ class CotacaoFornecedorControlador extends BaseController {
         }
 
         // Se cotação já está fechada ou cancelada, não permite alterar
-        $fechada = in_array($cf['status_cotacao'], ['fechada', 'cancelada']);
+        $fechada = in_array($cf['status_cotacao'], ['fechada', 'cancelado']);
 
         $qItens = $bd->prepare("
-            SELECT ci.*, p.nome AS nome_produto, p.codigo AS codigo_produto
+            SELECT ci.produto_id, p.nome AS nome_produto, p.codigo AS codigo_produto, SUM(ci.quantidade) AS quantidade
             FROM cotacao_itens ci
             JOIN produtos p ON p.id = ci.produto_id
             WHERE ci.cotacao_id = :cid
+            GROUP BY ci.produto_id, p.nome, p.codigo
         ");
         $qItens->execute([':cid' => $cf['cotacao_id']]);
         $itens = $qItens->fetchAll();
@@ -59,7 +60,10 @@ class CotacaoFornecedorControlador extends BaseController {
             $propostasMapeadas[$p['produto_id']] = $p;
         }
 
-        $this->renderizarSemLayout('cotacao/responder', compact('cf', 'itens', 'propostasMapeadas', 'token', 'fechada'));
+        $qCP = $bd->query("SELECT codigo, descricao FROM condicoes_pagamento ORDER BY descricao");
+        $condicoesPagamento = $qCP->fetchAll();
+
+        $this->renderizarSemLayout('cotacao/responder', compact('cf', 'itens', 'propostasMapeadas', 'token', 'fechada', 'condicoesPagamento'));
     }
 
     public function salvar(): void {
@@ -90,7 +94,7 @@ class CotacaoFornecedorControlador extends BaseController {
             return;
         }
 
-        if (in_array($cf['status_cotacao'], ['fechada', 'cancelada'])) {
+        if (in_array($cf['status_cotacao'], ['fechada', 'cancelado'])) {
             $this->json(false, 'Esta cotação já se encontra encerrada ou cancelada. Não é possível enviar propostas.');
             return;
         }
@@ -98,20 +102,14 @@ class CotacaoFornecedorControlador extends BaseController {
         // Validar campos do cabeçalho
         $modalidadeFrete = trim($_POST['modalidade_frete'] ?? '');
         $transportadora = trim($_POST['transportadora'] ?? '');
-        $condicaoPagamento = trim($_POST['condicao_pagamento'] ?? '');
-        $impostos = (float)str_replace(',', '.', $_POST['impostos'] ?? '0');
+        $cnpjTransportadora = trim($_POST['cnpj_transportadora'] ?? '');
         $taxasAdicionais = (float)str_replace(',', '.', $_POST['taxas_adicionais'] ?? '0');
         $validadeProposta = !empty($_POST['validade_proposta']) ? trim($_POST['validade_proposta']) : null;
-        $garantia = trim($_POST['garantia'] ?? '');
         $prazoEntrega = (int)($_POST['prazo_entrega'] ?? 0);
         $observacao = trim($_POST['observacao'] ?? '');
 
         if (empty($modalidadeFrete)) {
             $this->json(false, 'A modalidade do frete é obrigatória.');
-            return;
-        }
-        if (empty($condicaoPagamento)) {
-            $this->json(false, 'A condição de pagamento é obrigatória.');
             return;
         }
 
@@ -129,11 +127,9 @@ class CotacaoFornecedorControlador extends BaseController {
                 UPDATE cotacao_fornecedores 
                 SET modalidade_frete = :frete,
                     transportadora = :transp,
-                    condicao_pagamento = :pagto,
-                    impostos = :impostos,
+                    cnpj_transportadora = :cnpj,
                     taxas_adicionais = :taxas,
                     validade_proposta = :validade,
-                    garantia = :garantia,
                     prazo_entrega = :prazo,
                     observacao = :obs,
                     status = 'respondido',
@@ -143,11 +139,9 @@ class CotacaoFornecedorControlador extends BaseController {
             $qUpCF->execute([
                 ':frete' => $modalidadeFrete,
                 ':transp' => $transportadora,
-                ':pagto' => $condicaoPagamento,
-                ':impostos' => $impostos,
+                ':cnpj' => $cnpjTransportadora,
                 ':taxas' => $taxasAdicionais,
                 ':validade' => $validadeProposta,
-                ':garantia' => $garantia,
                 ':prazo' => $prazoEntrega,
                 ':obs' => $observacao,
                 ':cfid' => $cfId
@@ -157,6 +151,9 @@ class CotacaoFornecedorControlador extends BaseController {
             foreach ($itensForm as $prodId => $detalhes) {
                 $precoUnitario = (float)str_replace(',', '.', $detalhes['preco_unitario'] ?? '0');
                 $prazoEntrega = (int)($detalhes['prazo_entrega'] ?? 0);
+                $taxasItem = (float)str_replace(',', '.', $detalhes['taxas'] ?? '0');
+                $garantiaItem = trim($detalhes['garantia'] ?? '');
+                $condPagamentoItem = trim($detalhes['condicao_pagamento'] ?? '');
                 $obsItem = trim($detalhes['observacao'] ?? '');
                 $modelo = trim($detalhes['modelo'] ?? '');
                 $disponivel = isset($detalhes['disponivel']) ? 1 : 0;
@@ -170,7 +167,7 @@ class CotacaoFornecedorControlador extends BaseController {
                 }
 
                 // Obter quantidade do item da cotação
-                $qQtd = $bd->prepare("SELECT quantidade FROM cotacao_itens WHERE cotacao_id = :cid AND produto_id = :pid");
+                $qQtd = $bd->prepare("SELECT SUM(quantidade) FROM cotacao_itens WHERE cotacao_id = :cid AND produto_id = :pid");
                 $qQtd->execute([':cid' => $cf['cotacao_id'], ':pid' => $prodId]);
                 $qtdItem = $qQtd->fetchColumn();
 
@@ -186,9 +183,12 @@ class CotacaoFornecedorControlador extends BaseController {
                 if ($propId !== false) {
                     // Update
                     $qUpProp = $bd->prepare("
-                        UPDATE cotacao_propostas 
+                        UPDATE cotacao_propostas
                         SET preco_unitario = :preco,
                             prazo_entrega = :prazo,
+                            taxas = :taxas,
+                            garantia = :garantia,
+                            condicao_pagamento = :pagto,
                             observacao = :obs,
                             modelo = :modelo,
                             disponivel = :disp
@@ -197,6 +197,9 @@ class CotacaoFornecedorControlador extends BaseController {
                     $qUpProp->execute([
                         ':preco' => $precoUnitario,
                         ':prazo' => $prazoEntrega,
+                        ':taxas' => $taxasItem,
+                        ':garantia' => $garantiaItem,
+                        ':pagto' => $condPagamentoItem,
                         ':obs' => $obsItem,
                         ':modelo' => $modelo,
                         ':disp' => $disponivel,
@@ -205,8 +208,8 @@ class CotacaoFornecedorControlador extends BaseController {
                 } else {
                     // Insert
                     $qInProp = $bd->prepare("
-                        INSERT INTO cotacao_propostas (cotacao_fornecedor_id, produto_id, quantidade, preco_unitario, prazo_entrega, observacao, modelo, disponivel)
-                        VALUES (:cfid, :pid, :qtd, :preco, :prazo, :obs, :modelo, :disp)
+                        INSERT INTO cotacao_propostas (cotacao_fornecedor_id, produto_id, quantidade, preco_unitario, prazo_entrega, taxas, garantia, condicao_pagamento, observacao, modelo, disponivel)
+                        VALUES (:cfid, :pid, :qtd, :preco, :prazo, :taxas, :garantia, :pagto, :obs, :modelo, :disp)
                     ");
                     $qInProp->execute([
                         ':cfid' => $cfId,
@@ -214,6 +217,9 @@ class CotacaoFornecedorControlador extends BaseController {
                         ':qtd' => $qtdItem,
                         ':preco' => $precoUnitario,
                         ':prazo' => $prazoEntrega,
+                        ':taxas' => $taxasItem,
+                        ':garantia' => $garantiaItem,
+                        ':pagto' => $condPagamentoItem,
                         ':obs' => $obsItem,
                         ':modelo' => $modelo,
                         ':disp' => $disponivel
@@ -221,7 +227,7 @@ class CotacaoFornecedorControlador extends BaseController {
                 }
             }
 
-            // Nota: A cotação permanece 'aberta' enquanto recebe propostas.
+            // Nota: A cotação permanece 'aberto' enquanto recebe propostas.
             // O comprador a 'fecha' ao selecionar o vencedor.
 
             // 4. Notificar comprador/gerente

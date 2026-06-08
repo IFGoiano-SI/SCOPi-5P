@@ -44,7 +44,7 @@ class OrdemCompraControlador extends BaseController {
     }
 
     /**
-     * RF13: Salvar ordem de compra (edição apenas quando status = aberta)
+     * RF13: Salvar ordem de compra (edição apenas quando status = aberto)
      */
     public function salvar(): void {
         Auxiliares::exigirPerfil('comprador', 'administrador');
@@ -77,9 +77,26 @@ class OrdemCompraControlador extends BaseController {
         }
     }
 
+    public function vincularSolicitacao(): void {
+        Auxiliares::exigirPerfil('comprador','administrador');
+        $usuario = Auxiliares::usuarioLogado();
+        $ordemId = (int)($_POST['ordem_id'] ?? 0);
+        $solicitacaoId = (int)($_POST['solicitacao_id'] ?? 0);
+        if ($ordemId <= 0 || $solicitacaoId <= 0) {
+            $this->json(false, 'Dados inválidos.');
+            return;
+        }
+        try {
+            $ok = $this->m->vincularSolicitacao($ordemId, $solicitacaoId, $usuario['id']);
+            $this->json($ok, $ok ? 'Solicitação vinculada com sucesso.' : 'Erro ao vincular.');
+        } catch (\Exception $e) {
+            $this->json(false, 'Erro: ' . $e->getMessage());
+        }
+    }
+
     /**
      * RF13: Autorizar ordem de compra (gerente de compras)
-     * A OC só pode ser enviada ao fornecedor após autorização
+     * A OC só pode ser enviado ao fornecedor após autorização
      */
     public function autorizar(): void {
         Auxiliares::exigirPerfil('administrador', 'gerente');
@@ -93,20 +110,20 @@ class OrdemCompraControlador extends BaseController {
 
         $ok = $this->m->autorizar($id, (int)$usuario['id']);
         if ($ok) {
-            // Notificar comprador que a OC foi autorizada
+            // Notificar comprador que a OC foi autorizado
             $ordem = $this->m->buscarPorId($id);
             if ($ordem) {
                 Notificador::notificarUsuario(
                     (int)$ordem['usuario_id'],
-                    'OC autorizada: ' . $ordem['numero'],
-                    "A ordem de compra {$ordem['numero']} foi autorizada por {$usuario['nome']}.",
+                    'OC autorizado: ' . $ordem['numero'],
+                    "A ordem de compra {$ordem['numero']} foi autorizado por {$usuario['nome']}.",
                     'ordem'
                 );
             }
-            $this->m->registrarHistorico('ordens_compra', $id, ['status' => 'aberta'], ['status' => 'autorizada'], (int)$usuario['id']);
-            $this->json(true, 'Ordem de compra autorizada com sucesso.');
+            $this->m->registrarHistorico('ordens_compra', $id, ['status' => 'aberto'], ['status' => 'autorizado'], (int)$usuario['id']);
+            $this->json(true, 'Ordem de compra autorizado com sucesso.');
         } else {
-            $this->json(false, 'Não foi possível autorizar. A ordem precisa estar com status "aberta".');
+            $this->json(false, 'Não foi possível autorizar. A ordem precisa estar com status "aberto".');
         }
     }
 
@@ -124,16 +141,16 @@ class OrdemCompraControlador extends BaseController {
                 $sucesso++;
                 $ordem = $this->m->buscarPorId($idInt);
                 if ($ordem) {
-                    \Config\Notificador::notificarUsuario((int)$ordem['usuario_id'], 'OC autorizada: ' . $ordem['numero'], "A ordem de compra {$ordem['numero']} foi autorizada por {$usuario['nome']}.", 'ordem');
+                    \Config\Notificador::notificarUsuario((int)$ordem['usuario_id'], 'OC autorizado: ' . $ordem['numero'], "A ordem de compra {$ordem['numero']} foi autorizado por {$usuario['nome']}.", 'ordem');
                 }
-                $this->m->registrarHistorico('ordens_compra', $idInt, ['status' => 'aberta'], ['status' => 'autorizada'], (int)$usuario['id']);
+                $this->m->registrarHistorico('ordens_compra', $idInt, ['status' => 'aberto'], ['status' => 'autorizado'], (int)$usuario['id']);
             }
         }
         $this->json(true, "$sucesso itens autorizados com sucesso.");
     }
 
     /**
-     * RF13: Remover autorização (se ainda não foi enviada)
+     * RF13: Remover autorização (se ainda não foi enviado)
      */
     public function desautorizar(): void {
         Auxiliares::exigirPerfil('administrador', 'gerente');
@@ -151,10 +168,10 @@ class OrdemCompraControlador extends BaseController {
                     'ordem'
                 );
             }
-            $this->m->registrarHistorico('ordens_compra', $id, ['status' => 'autorizada'], ['status' => 'aberta'], (int)$usuario['id']);
+            $this->m->registrarHistorico('ordens_compra', $id, ['status' => 'autorizado'], ['status' => 'aberto'], (int)$usuario['id']);
             $this->json(true, 'Autorização removida. A ordem pode ser editada novamente.');
         } else {
-            $this->json(false, 'Não foi possível remover a autorização. A ordem precisa estar "autorizada" e não pode ter sido enviada.');
+            $this->json(false, 'Não foi possível remover a autorização. A ordem precisa estar "autorizado" e não pode ter sido enviado.');
         }
     }
 
@@ -181,7 +198,6 @@ class OrdemCompraControlador extends BaseController {
                     $mensagem = "Prezado(a) {$fornecedor['razao_social']},\n\n";
                     $mensagem .= "Segue a ordem de compra {$ordem['numero']}.\n\n";
                     $mensagem .= "Valor total: R$ " . number_format((float)$ordem['valor_total'], 2, ',', '.') . "\n";
-                    $mensagem .= "Condição de pagamento: {$ordem['condicao_pagamento']}\n";
                     $mensagem .= "Prazo de entrega: {$ordem['prazo_entrega']}\n\n";
                     $mensagem .= "Atenciosamente,\nSCOPi";
 
@@ -190,15 +206,15 @@ class OrdemCompraControlador extends BaseController {
 
                 Notificador::notificarUsuario(
                     (int)$ordem['usuario_id'],
-                    'OC enviada: ' . $ordem['numero'],
-                    "A ordem de compra {$ordem['numero']} foi enviada ao fornecedor.",
+                    'OC enviado: ' . $ordem['numero'],
+                    "A ordem de compra {$ordem['numero']} foi enviado ao fornecedor.",
                     'ordem'
                 );
             }
-            $this->m->registrarHistorico('ordens_compra', $id, ['status' => 'autorizada'], ['status' => 'enviada'], (int)$usuario['id']);
-            $this->json(true, 'Ordem de compra enviada ao fornecedor com sucesso.');
+            $this->m->registrarHistorico('ordens_compra', $id, ['status' => 'autorizado'], ['status' => 'enviado'], (int)$usuario['id']);
+            $this->json(true, 'Ordem de compra enviado ao fornecedor com sucesso.');
         } else {
-            $this->json(false, 'Não foi possível enviar. A ordem precisa estar "autorizada".');
+            $this->json(false, 'Não foi possível enviar. A ordem precisa estar "autorizado".');
         }
     }
 
@@ -225,7 +241,7 @@ class OrdemCompraControlador extends BaseController {
     }
 
     /**
-     * RF13/RF10: Criar OC diretamente de solicitação autorizada (sem cotação prévia)
+     * RF13/RF10: Criar OC diretamente de solicitação autorizado (sem cotação prévia)
      */
     public function criarDeSolicitacao(): void {
         Auxiliares::exigirPerfil('comprador', 'administrador');
@@ -240,13 +256,13 @@ class OrdemCompraControlador extends BaseController {
 
         $bd = \Config\BancoDados::obterInstancia()->obterConexao();
 
-        // Verificar se a solicitação está autorizada
-        $qSol = $bd->prepare("SELECT * FROM solicitacoes WHERE id = :id AND status = 'autorizada'");
+        // Verificar se a solicitação está autorizado
+        $qSol = $bd->prepare("SELECT * FROM solicitacoes WHERE id = :id AND status = 'autorizado'");
         $qSol->execute([':id' => $solicitacaoId]);
         $sol = $qSol->fetch();
 
         if (!$sol) {
-            $this->json(false, 'A solicitação precisa estar autorizada.');
+            $this->json(false, 'A solicitação precisa estar autorizado.');
             return;
         }
 
@@ -257,7 +273,7 @@ class OrdemCompraControlador extends BaseController {
             $numero = 'OC-' . date('Ymd') . '-' . rand(1000, 9999);
             $qOC = $bd->prepare("
                 INSERT INTO ordens_compra (numero, solicitacao_id, fornecedor_id, usuario_id, status, emitido_em, criado_em)
-                VALUES (:num, :sid, :fid, :uid, 'aberta', CURDATE(), NOW())
+                VALUES (:num, :sid, :fid, :uid, 'aberto', CURDATE(), NOW())
             ");
             $qOC->execute([
                 ':num' => $numero,
@@ -287,7 +303,7 @@ class OrdemCompraControlador extends BaseController {
             $bd->prepare("UPDATE solicitacoes SET status = 'em_cotacao', atualizado_em = NOW() WHERE id = :sid")
                ->execute([':sid' => $solicitacaoId]);
 
-            $this->m->registrarHistorico('ordens_compra', $ordemId, [], ['numero' => $numero, 'status' => 'aberta'], (int)$usuario['id']);
+            $this->m->registrarHistorico('ordens_compra', $ordemId, [], ['numero' => $numero, 'status' => 'aberto'], (int)$usuario['id']);
 
             $bd->commit();
             $this->json(true, "Ordem de compra {$numero} criada com sucesso a partir da solicitação. Os preços unitários devem ser preenchidos manualmente.", ['id' => $ordemId]);
@@ -303,7 +319,7 @@ class OrdemCompraControlador extends BaseController {
         Auxiliares::exigirPerfil('gerente', 'administrador');
         $usuario = Auxiliares::usuarioLogado();
         $filtros = $_GET;
-        $filtros['status'] = 'aberta';
+        $filtros['status'] = 'aberto';
         $ordens = $this->m->listarComFiltros($filtros);
         
         $departamentos = (new \Models\DepartamentoModelo())->listarAtivos();
@@ -330,6 +346,14 @@ class OrdemCompraControlador extends BaseController {
         }
 
         Auxiliares::gerarCSV('ordens_compra', $cabecalhos, $dadosCsv);
+    }
+
+    public function excluir_item(): void {
+        Auxiliares::exigirAutenticacao();
+        $usuario = Auxiliares::usuarioLogado();
+        $id = (int)($_POST['id']??0);
+        $ok = $this->m->excluirItem($id, $usuario['id']);
+        $this->json($ok, $ok ? 'Item removido com sucesso.' : 'Falha ao remover item. A ordem pode não estar aberto.');
     }
 
     public function imprimir(): void {

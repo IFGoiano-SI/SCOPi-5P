@@ -1,12 +1,24 @@
-<?php use Config\Auxiliares; ?>
+﻿<?php use Config\Auxiliares; ?>
 <script>document.getElementById('topbarTitulo').textContent = 'Cotações';</script>
 <div class="pagina-cabecalho"><h1 class="pagina-titulo">Cotações</h1><p class="pagina-subtitulo">Gerenciamento de cotações com fornecedores</p></div>
 <div class="painel-filtros">
   <div class="filtros-cabecalho"><img src="<?= BASE_URL ?>/public/assets/icons/iconeFiltro.svg" alt=""><span>Filtros</span></div>
   <form method="GET" action="<?= BASE_URL ?>/cotacoes"><div class="filtros-campos">
+    <div class="campo-filtro"><label>Número</label><input type="text" name="numero" value="<?= Auxiliares::escapar($filtros['numero']??'') ?>"></div>
+    <div class="campo-filtro">
+        <label style="display:flex;gap:8px;align-items:center;justify-content:space-between;">
+            <span>Cód. Fornecedor</span>
+            <button type="button" class="btn btn-secundario" style="padding:4px 6px;margin:0;" title="Buscar fornecedor" onclick="Scopi.iconeBusca('fornecedores','filtroFornCotCodigo','filtroFornCotNome')"><img src="<?= BASE_URL ?>/public/assets/icons/iconeBusca.svg" style="width:13px;margin:0;" alt="Buscar"></button>
+        </label>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="text" id="filtroFornCotCodigo" name="fornecedor_codigo" value="<?= Auxiliares::escapar($filtros['fornecedor_codigo'] ?? '') ?>" class="campo-input" style="width: 100px; text-transform: uppercase;"  onblur="buscarFornecedorFiltro(this.value)">
+            <span id="filtroFornCotNome" style="font-size: 0.8rem; color: var(--texto-secundario);"><?= empty($filtros['fornecedor_codigo']) ? 'Digite...' : 'Buscando...' ?></span>
+        </div>
+    </div>
+    <div class="campo-filtro"><label>Data Abertura</label><input type="date" name="data_abertura" value="<?= Auxiliares::escapar($filtros['data_abertura']??'') ?>"></div>
+    <div class="campo-filtro"><label>Data Encerramento</label><input type="date" name="data_encerramento" value="<?= Auxiliares::escapar($filtros['data_encerramento']??'') ?>"></div>
     <div class="campo-filtro"><label>Status</label><select name="status"><option value="">Todos</option><option value="aberta">Aberta</option><option value="fechada">Fechada</option><option value="concluida">Concluída</option><option value="cancelada">Cancelada</option></select></div>
-    <div class="campo-filtro"><label>A partir de</label><input type="date" name="periodo" value="<?= Auxiliares::escapar($filtros['periodo']??'') ?>"></div>
-    <div class="campo-filtro" style="flex:0;align-self:flex-end;"><button type="submit" class="btn btn-filtrar"><img src="<?= BASE_URL ?>/public/assets/icons/iconeBusca.svg" alt=""> Buscar</button></div>
+    <div class="campo-filtro" style="flex:0;align-self:flex-end;"><button type="submit" class="btn btn-filtrar"><img src="<?= BASE_URL ?>/public/assets/icons/iconeBusca.svg" alt=""> Filtrar</button></div>
   </div></form>
 </div>
 <div class="barra-acoes">
@@ -22,16 +34,30 @@
 </div>
 <div class="tabela-container">
   <table class="tabela">
-    <thead><tr><th>Nº Cotação</th><th>Solicitação</th><th>Abertura</th><th>Encerramento</th><th>Status</th><th class="coluna-acoes"></th></tr></thead>
+    <thead><tr>
+      <th>Nº Cotação</th>
+      <th>Abertura / Encerramento</th>
+      <th style="text-align:center;">Enviadas</th>
+      <th style="text-align:center;">Respostas</th>
+      <th>Fornecedor Vencedor</th>
+      <th>Cód. Fornecedor</th>
+      <th>Status</th>
+      <th class="coluna-acoes"></th>
+    </tr></thead>
     <tbody>
-      <?php if(empty($cotacoes)): ?><tr><td colspan="6" style="text-align:center;padding:32px;color:#888;">Nenhuma cotação encontrada.</td></tr>
+      <?php if(empty($cotacoes)): ?><tr><td colspan="8" style="text-align:center;padding:32px;color:#888;">Nenhuma cotação encontrada.</td></tr>
       <?php else: foreach($cotacoes as $c): ?>
       <tr>
         <td><span class="cod-clicavel" onclick="Scopi.abrirRegistro('modalCotacao','formCotacao','/cotacoes/dados',<?= $c['id'] ?>,'visualizar')"><?= Auxiliares::escapar($c['numero']??$c['id']) ?></span></td>
-        <td><?= Auxiliares::escapar($c['num_solicitacao']??'—') ?></td>
-        <td><?= !empty($c['data_abertura'])?date('d/m/Y',strtotime($c['data_abertura'])):'—' ?></td>
-        <td><?= !empty($c['data_encerramento'])?date('d/m/Y',strtotime($c['data_encerramento'])):'—' ?></td>
-        <td><span class="badge badge-<?= $c['status'] ?>"><?= ucfirst($c['status']) ?></span></td>
+        <td style="font-size:0.82rem;">
+          <?= !empty($c['data_abertura'])?date('d/m/Y',strtotime($c['data_abertura'])):'—' ?>
+          <?php if(!empty($c['data_encerramento'])): ?><br><span style="color:#888;">até <?= date('d/m/Y',strtotime($c['data_encerramento'])) ?></span><?php endif; ?>
+        </td>
+        <td style="text-align:center;"><?= (int)($c['total_fornecedores']??0) ?></td>
+        <td style="text-align:center;"><?= (int)($c['total_respostas']??0) ?></td>
+        <td><?= Auxiliares::escapar($c['fornecedor_vencedor']??'—') ?></td>
+        <td><?= Auxiliares::escapar($c['codigo_fornecedor_vencedor']??'—') ?></td>
+        <td><span class="badge badge-<?= $c['status'] ?>"><?= Auxiliares::formatarStatus($c['status']) ?></span></td>
         <td class="coluna-acoes">
           <button class="btn-icone btn-editar-linha" onclick="Scopi.abrirRegistro('modalCotacao','formCotacao','/cotacoes/dados',<?= $c['id'] ?>,'visualizar')" title="Ver"><img src="<?= BASE_URL ?>/public/assets/icons/iconeEditar.svg" alt=""></button>
           <button class="btn-icone" onclick="window.open('<?= BASE_URL ?>/cotacoes/imprimir?id=<?= $c['id'] ?>', '_blank')" title="Imprimir"><img src="<?= BASE_URL ?>/public/assets/icons/iconeDownload.svg" alt=""></button>
@@ -43,7 +69,7 @@
 </div>
 
 <div class="overlay-modal" id="modalCotacao">
-  <div class="modal modal-largo" style="max-width: 90%; width: 1200px;">
+  <div class="modal modal-largo" style="max-width: 90%; width: 900px;">
     <div class="modal-cabecalho">
       <div class="modal-titulo">
         <img src="<?= BASE_URL ?>/public/assets/icons/iconeOC.svg" alt="">
@@ -54,95 +80,297 @@
       </button>
     </div>
     
-    <div class="modal-abas">
-      <button class="aba-btn ativa" data-aba="visualizar" onclick="Scopi.ativarAba('modalCotacao','visualizar')">Visualizar</button>
-      <?php if(in_array($usuario['perfil'], ['comprador', 'administrador'])): ?>
-        <button class="aba-btn" data-aba="editar" onclick="Scopi.ativarAba('modalCotacao','editar')">Nova Cotação</button>
-      <?php endif; ?>
-    </div>
-    
     <div class="modal-corpo">
-      <div class="conteudo-aba ativo" data-aba="visualizar">
-        <div class="grade-visualizar">
-          <div class="campo-visualizar"><span class="rotulo">Número</span><span class="valor" data-campo="numero">—</span></div>
-          <div class="campo-visualizar"><span class="rotulo">Status</span><span class="valor"><span class="badge" data-badge="status">—</span></span></div>
-          <div class="campo-visualizar"><span class="rotulo">Abertura</span><span class="valor" data-campo="data_abertura">—</span></div>
-          <div class="campo-visualizar"><span class="rotulo">Encerramento</span><span class="valor" data-campo="data_encerramento">—</span></div>
-        </div>
+      <div class="conteudo-aba ativo" data-aba="editar">
+        <form id="formCotacao" onsubmit="event.preventDefault();">
+          <input type="hidden" name="id" id="cotacaoIdInput" value="0">
 
-        <div style="margin-top: 25px;">
-          <h3 style="font-size: 0.9rem; font-weight: 600; color: var(--escura); margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
-            <img src="<?= BASE_URL ?>/public/assets/icons/iconeOC.svg" style="width: 16px;" alt="">
-            Comparativo de Propostas Comerciais
-          </h3>
-          <div id="comparativoMatrixContainer" style="overflow-x: auto; border: 1px solid var(--borda); border-radius: 6px; background-color: var(--branco);">
-            <!-- Populated dynamically via JS -->
-          </div>
-        </div>
-      </div>
-      
-      <div class="conteudo-aba" data-aba="editar">
-        <form id="formCotacao" onsubmit="event.preventDefault();Scopi.enviarFormulario('formCotacao','modalCotacao','/cotacoes/criar')">
-          <input type="hidden" name="id" value="0">
-          <div class="grade-form" style="grid-template-columns: 1fr;">
-            
+          <!-- CAMPOS READ-ONLY (Capa) -->
+          <div class="grade-form" style="grid-template-columns: 1fr 1fr; margin-bottom: 15px;">
             <div class="campo-form">
-              <label>Solicitação Autorizada *</label>
-              <select name="solicitacao_id" id="cotacSolicitacaoSel" required onchange="carregarItensSolicitacao(this.value)" class="campo-select" style="width: 100%; padding: 8px 10px; border: 1px solid var(--borda); border-radius: 6px; font-size: 0.78rem;">
-                <option value="">Selecione uma solicitação...</option>
-              </select>
+              <label>Número</label>
+              <input type="text" readonly class="campo-input" style="cursor: not-allowed;" value="" data-campo="numero">
             </div>
-            
-            <div id="itensSolicitacaoPreviewContainer" style="margin-top: 10px; display: none;">
-              <label style="margin-bottom: 6px; font-weight: 500; font-size: 0.78rem;">Itens da Solicitação Selecionada:</label>
-              <div class="tabela-container" style="border: 1px solid var(--borda); max-height: 150px; overflow-y: auto;">
-                <table class="tabela" id="tabItensSolicitacaoPreview">
-                  <thead>
-                    <tr>
-                      <th style="padding: 6px 10px; text-align: left;">Produto</th>
-                      <th style="width: 120px; text-align: right; padding: 6px 10px;">Quantidade</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                  </tbody>
-                </table>
+            <div class="campo-form">
+              <label>Status</label>
+              <input type="text" readonly class="campo-input" style="cursor: not-allowed;" value="Aberto" data-campo="status_texto">
+            </div>
+          </div>
+
+          <div class="grade-form" style="grid-template-columns: 1fr 1fr; margin-bottom: 15px;">
+            <div class="campo-form">
+              <label>Comprador</label>
+              <input type="text" readonly class="campo-input" style="cursor: not-allowed;" value="—" data-campo="nome_comprador">
+            </div>
+            <div class="campo-form">
+              <label>&nbsp;</label>
+            </div>
+          </div>
+
+          <div class="grade-form" style="grid-template-columns: 1fr 1fr; margin-bottom: 15px;">
+            <div class="campo-form">
+              <label>Fornecedores Convidados</label>
+              <input type="text" readonly class="campo-input" style="cursor: not-allowed;" value="0 fornecedor(es)" id="cotacContadorFornInput">
+            </div>
+            <div class="campo-form">
+              <label>&nbsp;</label>
+              <button type="button" class="btn btn-secundario" id="btnGerenciarFornecedores" style="display:none;" onclick="abrirModalFornecedores()">Gerenciar</button>
+            </div>
+          </div>
+
+          <!-- ABAS INTERNAS (CAPA / ITENS) -->
+          <div class="modal-abas" id="abasCotacaoEditar" style="margin-bottom: 15px;">
+            <button type="button" class="aba-btn ativa" id="abaCotCapaBtn" onclick="mudarAbaEdicaoCot('capa')">1. Capa</button>
+            <button type="button" class="aba-btn" id="abaCotItensBtn" onclick="mudarAbaEdicaoCot('itens')">2. Itens</button>
+          </div>
+          <div id="blocoCotCapa" style="display:block;">
+
+            <!-- Campos editáveis da capa (datas) -->
+            <div id="bloCotDatas" class="grade-form" style="grid-template-columns:1fr 1fr;margin-bottom:14px;">
+              <div class="campo-form">
+                <label>Data de Abertura *</label>
+                <input type="date" name="data_abertura" id="cotDataAbertura" required>
+              </div>
+              <div class="campo-form">
+                <label>Data de Encerramento *</label>
+                <input type="date" name="data_encerramento" id="cotDataEncerramento" required>
               </div>
             </div>
+
+          </div>
+            <div id="blocoItensCotacao" style="margin-top: 15px; border-top: 1px solid var(--borda); padding-top: 15px; display: none;">
+            <span class="rotulo" style="margin-bottom: 12px; display: block; font-size: 1rem; color: var(--media);">Itens da Cotação</span>
             
-            <div class="campo-form" style="margin-top: 15px; border-top: 1px solid var(--borda); padding-top: 15px;">
-              <label style="margin-bottom: 6px; font-weight: 500; font-size: 0.78rem;">Selecionar Fornecedores para Convidar *</label>
-              <input type="text" id="fornecedorBusca" placeholder="Pesquisar fornecedor por nome ou CNPJ..." oninput="filtrarFornecedoresChecklist(this.value)" class="campo-input" style="margin-bottom: 8px; font-size: 0.78rem; padding: 8px 10px; width: 100%;">
-              <div style="border: 1px solid var(--borda); border-radius: 6px; padding: 10px; max-height: 200px; overflow-y: auto; background-color: var(--branco);" id="fornecedoresChecklist">
-                <?php foreach($fornecedoresAtivos as $f): ?>
-                  <div class="fornecedor-chk-item" style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;" data-nome="<?= strtolower(Auxiliares::escapar($f['razao_social'])) ?>" data-cnpj="<?= strtolower(Auxiliares::escapar($f['cnpj'])) ?>">
-                    <input type="checkbox" name="fornecedores[]" value="<?= $f['id'] ?>" id="forn_chk_<?= $f['id'] ?>" style="width: 16px; height: 16px; accent-color: var(--media);">
-                    <label for="forn_chk_<?= $f['id'] ?>" style="font-size: 0.78rem; cursor: pointer; user-select: none;">
-                      <strong><?= Auxiliares::escapar($f['razao_social']) ?></strong> (CNPJ: <?= Auxiliares::escapar($f['cnpj']) ?>)
-                    </label>
-                  </div>
-                <?php endforeach; ?>
-              </div>
+            <div style="display:flex; gap:12px; margin-bottom:12px; flex-wrap:wrap;" id="acoesItensCotacao">
+                <button type="button" class="btn btn-secundario" onclick="abrirModalImportarItens()"><img src="<?= BASE_URL ?>/public/assets/icons/iconeDownload.svg" alt=""> Importar de Solicitação</button>
+                <button type="button" class="btn btn-secundario" id="btnDesfazerImportacao" style="display:none;" onclick="desfazerImportacao()"><img src="<?= BASE_URL ?>/public/assets/icons/iconeLixeira.svg" style="width:14px;margin-right:6px;filter: brightness(0) invert(1);" alt="">Remover Importação</button>
             </div>
             
+            <div style="margin-bottom:12px; display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;" id="blocoInclusaoManualCot">
+               <div class="campo-form">
+                 <label style="font-size:0.75rem;">Cód. Produto</label>
+                 <div style="display:flex;gap:4px;align-items:center;">
+                   <input type="text" id="cotProdutoCodigo" class="campo-input" style="width:120px;" onblur="buscarProdutoCotacao(this.value)">
+                   <button type="button" class="btn btn-secundario" style="padding:6px 8px;height:36px;" onclick="Scopi.iconeBusca('produtos', 'cotProdutoCodigo', 'cotProdutoNome', null); setTimeout(()=>buscarProdutoCotacao(document.getElementById('cotProdutoCodigo').value), 500);">
+                     <img src="<?= BASE_URL ?>/public/assets/icons/iconeBusca.svg" alt="Buscar" style="width:14px;margin:0;">
+                   </button>
+                 </div>
+                 <input type="hidden" id="cotProdutoId">
+                 <span id="cotProdutoNome" style="font-size:0.78rem; color:var(--sucesso); font-weight:600; display:block; margin-top:3px;"></span>
+               </div>
+               <div class="campo-form">
+                 <label style="font-size:0.75rem;">Quantidade</label>
+                 <input type="number" id="cotQtdInput" min="0.01" step="any"  style="width:90px;" class="campo-input">
+               </div>
+               <div class="campo-form">
+                 <label style="font-size:0.75rem;">Prazo Sugerido</label>
+                 <input type="text" id="cotPrazoSugeridoInput" style="width:110px;" class="campo-input" placeholder="Ex: 30 dias">
+               </div>
+               <button type="button" class="btn btn-primario" id="btnAdicionarItemCot" style="height:36px;margin-bottom:1px;" onclick="adicionarItemCotacaoTabela()" disabled title="Salve a capa da cotação primeiro">
+                 <img src="<?= BASE_URL ?>/public/assets/icons/iconeInserir.svg" alt=""> Adicionar
+               </button>
+            </div>
+            
+            <div class="tabela-container">
+              <table class="tabela" id="tabItensCotacao">
+                <thead>
+                  <tr>
+                    <th style="width: 50px; text-align: center; padding: 8px 12px;">Nº Item</th>
+                    <th style="padding: 8px 12px;">Produto</th>
+                    <th style="width: 100px; text-align: center; padding: 8px 12px;">Quantidade</th>
+                    <th style="width: 130px; padding: 8px 12px;">Prazo Sugerido</th>
+                    <th style="width: 80px; padding: 8px 12px;"></th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <input type="hidden" name="itens_json" id="itensCotJsonInput" value="[]">
+          </div>
+
+          <div id="blocoComparativo" style="margin-top: 25px; display:none;">
+            <h3 style="font-size: 0.9rem; font-weight: 600; color: var(--escura); margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+              <img src="<?= BASE_URL ?>/public/assets/icons/iconeOC.svg" style="width: 16px;" alt="">
+              Comparativo de Propostas Comerciais
+            </h3>
+            <div id="comparativoMatrixContainer" style="overflow-x: auto; border: 1px solid var(--borda); border-radius: 6px; background-color: var(--branco);">
+            </div>
           </div>
         </form>
       </div>
     </div>
     
     <div class="modal-rodape">
+      <button class="btn btn-secundario" id="btnVoltarCapaCot" style="display:none;" onclick="mudarAbaEdicaoCot('capa')">&larr; Voltar para Capa</button>
+      <button class="btn btn-secundario" id="btnAvancarItensCot" style="display:none;" onclick="mudarAbaEdicaoCot('itens')">Avançar para Itens &rarr;</button>
       <button class="btn btn-secundario" onclick="Scopi.fecharModal('modalCotacao')">Fechar</button>
-      <button class="btn btn-primario btn-salvar" onclick="Scopi.enviarFormulario('formCotacao','modalCotacao','/cotacoes/criar')">
-        <img src="<?= BASE_URL ?>/public/assets/icons/iconeInserir.svg" alt=""> Criar Cotação
-      </button>
+      <button class="btn btn-primario btn-salvar-capa" id="btnSalvarCapaCot" onclick="salvarCapaCotacao()" style="display:none;"><img src="<?= BASE_URL ?>/public/assets/icons/iconeInserir.svg" alt=""> Confirmar Capa</button>
+      <button class="btn btn-primario btn-salvar" id="btnSalvarItensCot" onclick="salvarItensCotacao()" style="display:none;"><img src="<?= BASE_URL ?>/public/assets/icons/iconeInserir.svg" alt=""> Salvar Itens</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL GERENCIAR FORNECEDORES -->
+<div class="overlay-modal" id="modalFornecedoresCotacao">
+  <div class="modal" style="width:700px;">
+    <div class="modal-cabecalho">
+      <div class="modal-titulo">Convidar Fornecedores</div>
+      <button class="btn-fechar-modal" onclick="event.stopPropagation(); Scopi.fecharModal('modalFornecedoresCotacao')"><img src="<?= BASE_URL ?>/public/assets/icons/iconeFechar.svg" alt=""></button>
+    </div>
+    <div class="modal-corpo">
+      <!-- FILTROS INTELIGENTES -->
+      <div style="margin-bottom: 15px; padding: 12px; background: #f9f9f9; border-radius: 6px; border: 1px solid #e0e0e0;">
+        <div style="font-size: 0.85rem; font-weight: 500; margin-bottom: 10px; color: #666;">Filtros</div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 10px;">
+          <div style="display:flex;flex-direction:column;">
+            <label style="font-size:0.85rem;font-weight:500;margin-bottom:4px;">Código</label>
+            <input type="text" id="filtroFornCodigoCot" placeholder="Ex: F001" onkeyup="filtrarFornecedoresChecklist()" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:4px;font-size:0.9rem;">
+          </div>
+          <div style="display:flex;flex-direction:column;">
+            <label style="font-size:0.85rem;font-weight:500;margin-bottom:4px;">Razão Social</label>
+            <input type="text" id="filtroFornRazaoSocialCot" placeholder="Ex: Empresa LTDA" onkeyup="filtrarFornecedoresChecklist()" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:4px;font-size:0.9rem;">
+          </div>
+          <div style="display:flex;flex-direction:column;">
+            <label style="font-size:0.85rem;font-weight:500;margin-bottom:4px;">Nome Fantasia</label>
+            <input type="text" id="filtroFornFantasiaCot" placeholder="Ex: Loja XYZ" onkeyup="filtrarFornecedoresChecklist()" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:4px;font-size:0.9rem;">
+          </div>
+          <div style="display:flex;flex-direction:column;">
+            <label style="font-size:0.85rem;font-weight:500;margin-bottom:4px;">CNPJ</label>
+            <input type="text" id="filtroFornCnpjCot" placeholder="Ex: 12.345.678" onkeyup="filtrarFornecedoresChecklist()" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:4px;font-size:0.9rem;">
+          </div>
+          <div style="display:flex;flex-direction:column;">
+            <label style="font-size:0.85rem;font-weight:500;margin-bottom:4px;">Tipo</label>
+            <select id="filtroFornTipoCot" onchange="filtrarFornecedoresChecklist()" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:4px;font-size:0.9rem;">
+              <option value="">Todos</option>
+              <option value="matriz">Matriz</option>
+              <option value="filial">Filial</option>
+            </select>
+          </div>
+          <div style="display:flex;flex-direction:column;">
+            <label style="font-size:0.85rem;font-weight:500;margin-bottom:4px;display:flex;gap:8px;align-items:center;justify-content:space-between;">
+              <span>Categoria</span>
+              <button type="button" class="btn btn-secundario" style="padding:4px 6px;margin:0;" title="Buscar categoria" onclick="event.stopPropagation(); Scopi.iconeBusca('categorias','filtroFornCategoriaIdCot','filtroFornCategoriaNomeCot')"><img src="<?= BASE_URL ?>/public/assets/icons/iconeBusca.svg" style="width:13px;margin:0;" alt="Buscar"></button>
+            </label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="text" id="filtroFornCategoriaIdCot" placeholder="Código ou ID" onblur="filtrarFornecedoresChecklist()" onkeyup="filtrarFornecedoresChecklist()" style="width:100px;padding:6px;border:1px solid #ddd;border-radius:4px;font-size:0.9rem;">
+              <span id="filtroFornCategoriaNomeCot" style="font-size:0.8rem;color:var(--texto-secundario);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Digite ou busque...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AÇÕES -->
+      <div style="display:flex; gap:8px; margin-bottom:12px;">
+        <button type="button" class="btn btn-secundario" style="font-size: 0.75rem; padding: 4px 8px;" onclick="document.querySelectorAll('#fornecedoresChecklist input[type=checkbox]:not(:disabled)').forEach(cb => { if(cb.parentElement.parentElement.style.display !== 'none') cb.checked = true; })">Marcar Todos Filtrados</button>
+        <button type="button" class="btn btn-secundario" style="font-size: 0.75rem; padding: 4px 8px;" onclick="document.querySelectorAll('#fornecedoresChecklist input[type=checkbox]:not(:disabled)').forEach(cb => { if(cb.parentElement.parentElement.style.display !== 'none') cb.checked = false; })">Desmarcar Todos Filtrados</button>
+      </div>
+
+      <!-- LISTA DE FORNECEDORES -->
+      <div style="border: 1px solid var(--borda); border-radius: 6px; padding: 10px; max-height: 280px; overflow-y: auto; background-color: var(--branco);" id="fornecedoresChecklist">
+        <?php foreach($fornecedoresAtivos as $f): ?>
+          <div class="fornecedor-chk-item" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"
+               data-codigo="<?= strtolower(Auxiliares::escapar($f['codigo'] ?? '')) ?>"
+               data-razao="<?= strtolower(Auxiliares::escapar($f['razao_social'] ?? '')) ?>"
+               data-fantasia="<?= strtolower(Auxiliares::escapar($f['nome_fantasia'] ?? '')) ?>"
+               data-cnpj="<?= strtolower(Auxiliares::escapar($f['cnpj'] ?? '')) ?>"
+               data-tipo="<?= strtolower(Auxiliares::escapar($f['tipo'] ?? '')) ?>"
+               data-categorias="<?= Auxiliares::escapar($f['categorias_ids'] ?? '') ?>">
+            <input type="checkbox" name="forn_convite[]" value="<?= $f['id'] ?>" id="forn_chk_<?= $f['id'] ?>" style="width:16px;height:16px;accent-color:var(--media);">
+            <label for="forn_chk_<?= $f['id'] ?>" style="font-size:0.78rem;cursor:pointer;user-select:none;flex:1;">
+              <strong><?= Auxiliares::escapar($f['codigo'] ?? '') ?> — <?= Auxiliares::escapar($f['razao_social']) ?></strong>
+              <span style="font-size:0.72rem;color:#888; display:block; margin-top:2px;">
+                <?= !empty($f['nome_fantasia']) ? 'Fantasia: ' . Auxiliares::escapar($f['nome_fantasia']) . ' | ' : '' ?>
+                CNPJ: <?= Auxiliares::escapar($f['cnpj']) ?>
+                <?php if(!empty($f['tipo'])): ?><span style="background:#f0f0f0;padding:1px 4px;border-radius:2px;font-size:0.7rem;margin-left:4px;"><?= ucfirst($f['tipo']) ?></span><?php endif; ?>
+              </span>
+              <span class="badge-sugerido-forn" id="sug_forn_<?= $f['id'] ?>" style="display:none;font-size:0.68rem;background:var(--media);color:#fff;padding:1px 5px;border-radius:3px;margin-left:4px;">Sugerido</span>
+            </label>
+          </div>
+        <?php endforeach; ?>
+      </div>
+    </div>
+    <div class="modal-rodape">
+      <button class="btn btn-secundario" onclick="event.stopPropagation(); Scopi.fecharModal('modalFornecedoresCotacao')">Fechar</button>
+      <button class="btn btn-primario" onclick="enviarConvitesFornecedores()">Enviar Convites</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL IMPORTAR ITENS SOLICITAÇÃO -->
+<div class="overlay-modal" id="modalImportarCot">
+  <div class="modal">
+    <div class="modal-cabecalho">
+      <div class="modal-titulo">Importar de Solicitação</div>
+      <button class="btn-fechar-modal" onclick="Scopi.fecharModal('modalImportarCot')"><img src="<?= BASE_URL ?>/public/assets/icons/iconeFechar.svg" alt=""></button>
+    </div>
+    <div class="modal-corpo">
+      <div class="campo-form" style="margin-bottom:15px;">
+        <label>Solicitação Autorizada</label>
+        <select id="cotacSolicitacaoSel" onchange="carregarItensSolicitacao(this.value)" class="campo-select" style="width: 100%;">
+          <option value="">Selecione uma solicitação...</option>
+        </select>
+      </div>
+      <div id="itensSolicitacaoPreviewContainer" style="display: none;">
+        <div class="tabela-container" style="border: 1px solid var(--borda); max-height: 200px; overflow-y: auto;">
+          <table class="tabela" id="tabItensSolicitacaoPreview">
+            <thead>
+              <tr>
+                <th style="width: 50px; text-align: center; padding: 8px 12px;">Nº Item</th>
+                <th style="padding: 8px 12px;">Produto</th>
+                <th style="width: 120px; text-align: right; padding: 8px 12px;">Quantidade</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="modal-rodape">
+      <button class="btn btn-secundario" onclick="Scopi.fecharModal('modalImportarCot')">Cancelar</button>
+      <button class="btn btn-primario" onclick="importarItensSelecionados()">Importar Itens</button>
     </div>
   </div>
 </div>
 
 <script>
 const USER_PERFIL = "<?= $usuario['perfil'] ?>";
+const USER_NOME = "<?= Auxiliares::escapar($usuario['nome']) ?>";
+const USER_ID = <?= (int)$usuario['id'] ?>;
 let _idCot = 0;
-let _statusCot = 'aberta';
+let _itensCotacaoAnterior = []; // Para desfazer importação
+
+/* ── Navegação interna capa ↔ itens ── */
+function mudarAbaEdicaoCot(aba) {
+    const blocoCapa  = document.getElementById('blocoCotCapa');
+    const blocoItens = document.getElementById('blocoItensCotacao');
+    const blocoComp  = document.getElementById('blocoComparativo');
+    const btnCapa    = document.getElementById('abaCotCapaBtn');
+    const btnItens   = document.getElementById('abaCotItensBtn');
+    const btnVoltar  = document.getElementById('btnVoltarCapaCot');
+    const btnAvancar = document.getElementById('btnAvancarItensCot');
+
+    if (aba === 'capa') {
+        if (blocoCapa)  blocoCapa.style.display  = 'block';
+        if (blocoItens) blocoItens.style.display = 'none';
+        if (btnCapa)    btnCapa.classList.add('ativa');
+        if (btnItens)   btnItens.classList.remove('ativa');
+        if (btnVoltar)  btnVoltar.style.display  = 'none';
+        if (btnAvancar && _idCot > 0) btnAvancar.style.display = 'inline-flex';
+        else if (btnAvancar) btnAvancar.style.display = 'none';
+    } else {
+        if (blocoCapa)  blocoCapa.style.display  = 'none';
+        if (blocoItens) blocoItens.style.display = 'block';
+        if (btnCapa)    btnCapa.classList.remove('ativa');
+        if (btnItens)   btnItens.classList.add('ativa');
+        if (btnVoltar)  btnVoltar.style.display  = 'inline-flex';
+        if (btnAvancar) btnAvancar.style.display = 'none';
+    }
+    if (blocoComp) blocoComp.style.display = (_idCot > 0) ? 'block' : 'none';
+    atualizarBotoesCotacao();
+}
+let _statusCot = 'aberto';
 let _cotacaoDados = null;
+let _itensCotacao = [];
 
 function formatarMoeda(valor) {
     return parseFloat(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -161,47 +389,118 @@ const _origAbrirCadastro = Scopi.abrirCadastro;
 Scopi.abrirCadastro = function(idModal, idForm) {
     _origAbrirCadastro(idModal, idForm);
     if (idModal === 'modalCotacao') {
-        _idCot = 0;
-        _statusCot = 'aberta';
-        const searchInput = document.getElementById('fornecedorBusca');
-        if (searchInput) searchInput.value = '';
-        filtrarFornecedoresChecklist('');
-        
-        document.querySelectorAll('#fornecedoresChecklist input[type="checkbox"]').forEach(cb => cb.checked = false);
-        
-        const preview = document.getElementById('itensSolicitacaoPreviewContainer');
-        if (preview) preview.style.display = 'none';
-        
-        carregarSolicitacoesAutorizadas();
-        atualizarBotoesRodape('editar');
+        _idCot = 0; _statusCot = 'aberto'; _cotacaoDados = null; _itensCotacao = [];
+        document.getElementById('cotacaoIdInput').value = '0';
+        document.querySelector('#modalCotacao [data-campo="numero"]').textContent = '';
+
+        // Preencher campos read-only na aba de edição com dados do usuário logado
+        document.querySelectorAll('#formCotacao [data-campo]').forEach(el => {
+            if (el.tagName === 'INPUT') {
+                const campo = el.getAttribute('data-campo');
+                if (campo === 'numero') el.value = '';
+                else if (campo === 'status_texto') el.value = 'Aberto';
+                else if (campo === 'nome_comprador') el.value = USER_NOME || '—';
+            }
+        });
+        document.getElementById('cotacContadorFornInput').value = '0 fornecedor(es)';
+
+        const bStatus = document.querySelector('#modalCotacao [data-badge="status"]');
+        if (bStatus) { bStatus.textContent = 'Nova'; bStatus.className = 'badge badge-aberta'; }
+        // Limpar campos de data
+        const dAb = document.getElementById('cotDataAbertura');
+        const dEnc = document.getElementById('cotDataEncerramento');
+        if (dAb)  { dAb.value = ''; dAb.removeAttribute('readonly'); }
+        if (dEnc) { dEnc.value = ''; dEnc.removeAttribute('readonly'); }
+        document.getElementById('bloCotDatas').style.display = 'grid';
+        mudarAbaEdicaoCot('capa');
+        document.getElementById('btnGerenciarFornecedores').style.display = 'inline-flex';
+        document.getElementById('blocoComparativo').style.display = 'none';
+        document.getElementById('btnAdicionarItemCot').setAttribute('disabled', '');
+        document.getElementById('btnAdicionarItemCot').title = 'Salve a capa da cotação primeiro';
+
+        // Ativar a aba "editar" por padrão
+        Scopi.ativarAba('modalCotacao', 'editar');
+
+        // Garantir que apenas "Confirmar Capa" está visível em nova cotação (DEPOIS de ativar aba)
+        document.getElementById('btnSalvarCapaCot').style.display = 'inline-flex';
+        document.getElementById('btnSalvarItensCot').style.display = 'none';
+
+        renderItensCotacaoTabela();
     }
 };
 
 const _origAbrirRegistro = Scopi.abrirRegistro;
-Scopi.abrirRegistro = async function(idModal, idForm, urlDados, id, abaInicial='visualizar') {
+Scopi.abrirRegistro = async function(idModal, idForm, urlDados, id, abaInicial='editar') {
     if (idModal === 'modalCotacao') {
         _idCot = id;
-        await _origAbrirRegistro(idModal, idForm, urlDados, id, abaInicial);
+        await _origAbrirRegistro(idModal, idForm, urlDados, id, 'editar');
         try {
-            const resp = await fetch(`${Scopi.url(urlDados)}?id=${id}`, {headers:{'X-Requested-With':'XMLHttpRequest'}});
+            const resp = await fetch(`${Scopi.url(urlDados)}?id=${id}`, {credentials:'include',headers:{'X-Requested-With':'XMLHttpRequest'}});
             const json = await resp.json();
             if (json.sucesso) {
                 _cotacaoDados = json.dados;
-                _statusCot = json.dados.status || 'aberta';
-                
-                const dataAberturaField = document.querySelector('#modalCotacao [data-campo="data_abertura"]');
-                if (dataAberturaField && json.dados.data_abertura) {
-                    dataAberturaField.textContent = formatarData(json.dados.data_abertura);
-                }
-                const dataEncerramentoField = document.querySelector('#modalCotacao [data-campo="data_encerramento"]');
-                if (dataEncerramentoField && json.dados.data_encerramento) {
-                    dataEncerramentoField.textContent = formatarData(json.dados.data_encerramento);
-                } else if (dataEncerramentoField) {
-                    dataEncerramentoField.textContent = '—';
-                }
+                _statusCot = json.dados.status || 'aberto';
+                _itensCotacao = json.dados.itens || [];
 
+                // Preencher campos read-only na aba de edição
+                const dados = json.dados;
+                document.querySelectorAll('#formCotacao [data-campo]').forEach(el => {
+                    if (el.tagName === 'INPUT') {
+                        const campo = el.getAttribute('data-campo');
+                        if (campo === 'numero') el.value = dados.numero || '';
+                        else if (campo === 'status_texto') el.value = dados.status ? Scopi.formatarStatus(dados.status) : '—';
+                        else if (campo === 'nome_comprador') el.value = dados.nome_comprador || '—';
+                    }
+                });
+                document.getElementById('cotacContadorFornInput').value = (dados.total_fornecedores || 0) + ' fornecedor(es)';
+
+                document.getElementById('cotacaoIdInput').value = id;
+                document.querySelector('#modalCotacao [data-campo="numero"]').textContent = json.dados.numero;
+
+                const bStatus = document.querySelector('#modalCotacao [data-badge="status"]');
+                if (bStatus) { bStatus.textContent = Scopi.formatarStatus(json.dados.status); bStatus.className = 'badge badge-' + json.dados.status; }
+
+                // Preencher campos de data
+                const dAb  = document.getElementById('cotDataAbertura');
+                const dEnc = document.getElementById('cotDataEncerramento');
+                if (dAb)  dAb.value  = json.dados.data_abertura    || '';
+                if (dEnc) dEnc.value = json.dados.data_encerramento || '';
+                // Se não for aberta, tornar readonly
+                const editavel = _statusCot === 'aberto' && (USER_PERFIL === 'comprador' || USER_PERFIL === 'administrador');
+                if (dAb)  { if (editavel) dAb.removeAttribute('readonly');  else dAb.setAttribute('readonly',''); }
+                if (dEnc) { if (editavel) dEnc.removeAttribute('readonly'); else dEnc.setAttribute('readonly',''); }
+
+                const numFornecedores = (json.dados.fornecedores || []).length;
+
+                // Sugestão automática por categoria (RF10)
+                _marcarFornecedoresSugeridos(json.dados.itens || []);
+                
+                if (_statusCot === 'aberto' && (USER_PERFIL === 'comprador' || USER_PERFIL === 'administrador')) {
+                    document.getElementById('btnGerenciarFornecedores').style.display = 'inline-flex';
+                    mudarAbaEdicaoCot('capa');
+                    document.getElementById('acoesItensCotacao').style.display = 'flex';
+                    document.getElementById('blocoInclusaoManualCot').style.display = 'flex';
+                    document.getElementById('btnAdicionarItemCot').removeAttribute('disabled');
+                    document.getElementById('btnAdicionarItemCot').title = 'Adicionar item à cotação';
+
+                    document.getElementById('btnSalvarCapaCot').style.display = 'none';
+                    document.getElementById('btnSalvarItensCot').style.display = 'inline-flex';
+                } else {
+                    document.getElementById('btnGerenciarFornecedores').style.display = 'none';
+                    mudarAbaEdicaoCot('capa');
+                    document.getElementById('acoesItensCotacao').style.display = 'none';
+                    document.getElementById('blocoInclusaoManualCot').style.display = 'none';
+                    document.getElementById('btnAdicionarItemCot').setAttribute('disabled', '');
+                    document.getElementById('btnAdicionarItemCot').title = 'Esta cotação não pode ser editada';
+
+                    document.getElementById('btnSalvarCapaCot').style.display = 'none';
+                    document.getElementById('btnSalvarItensCot').style.display = 'none';
+                }
+                
+                renderItensCotacaoTabela();
+                
+                document.getElementById('blocoComparativo').style.display = 'block';
                 renderMatrix(json.dados);
-                atualizarBotoesRodape(abaInicial);
             }
         } catch(e) {
             console.error(e);
@@ -211,23 +510,283 @@ Scopi.abrirRegistro = async function(idModal, idForm, urlDados, id, abaInicial='
     }
 };
 
-const _origAtivarAba = Scopi.ativarAba;
-Scopi.ativarAba = function(modalId, aba) {
-    _origAtivarAba(modalId, aba);
-    if (modalId === 'modalCotacao') {
-        atualizarBotoesRodape(aba);
-    }
-};
+async function salvarCapaCotacao() {
+    const dAb  = document.getElementById('cotDataAbertura');
+    const dEnc = document.getElementById('cotDataEncerramento');
+    if (!dAb?.value || !dEnc?.value) { Scopi.toast('erro', 'Informe as datas de abertura e encerramento.'); return; }
+    if (dEnc.value < dAb.value) { Scopi.toast('erro', 'A data de encerramento não pode ser anterior à abertura.'); return; }
 
-function atualizarBotoesRodape(aba) {
-    const btnSalvar = document.querySelector('#modalCotacao .btn-salvar');
-    if (!btnSalvar) return;
-    
-    if (aba === 'visualizar') {
-        btnSalvar.style.display = 'none';
-    } else if (aba === 'editar') {
-        btnSalvar.style.display = 'inline-flex';
+    const formData = new FormData(document.getElementById('formCotacao'));
+    try {
+        const resp = await fetch(Scopi.url('/cotacoes/salvarCapa'), { method:'POST', credentials:'include', body:formData, headers:{'X-Requested-With':'XMLHttpRequest'} });
+        const json = await resp.json();
+        if (json.sucesso) {
+            Scopi.toast('sucesso', json.mensagem);
+            _idCot = json.dados.id;
+            document.getElementById('cotacaoIdInput').value = _idCot;
+            document.getElementById('btnGerenciarFornecedores').style.display = 'inline-flex';
+            document.getElementById('btnSalvarCapaCot').style.display = 'none';
+            document.getElementById('btnSalvarItensCot').style.display = 'inline-flex';
+            document.getElementById('btnAdicionarItemCot').removeAttribute('disabled');
+            document.getElementById('btnAdicionarItemCot').title = 'Adicionar item à cotação';
+            if (dAb)  dAb.setAttribute('readonly', '');
+            if (dEnc) dEnc.setAttribute('readonly', '');
+            mudarAbaEdicaoCot('itens');
+            Scopi.abrirRegistro('modalCotacao', 'formCotacao', '/cotacoes/dados', _idCot);
+        } else {
+            Scopi.toast('erro', json.mensagem);
+        }
+    } catch(e) {
+        Scopi.toast('erro', 'Erro ao salvar capa da cotação.');
     }
+}
+
+/* ── RF10: Marcar fornecedores sugeridos por correspondência de categoria ── */
+function _marcarFornecedoresSugeridos(itens) {
+    // Coletar categoria_ids dos itens da cotação
+    const categoriasItens = new Set(itens.map(i => String(i.categoria_id)).filter(Boolean));
+
+    document.querySelectorAll('#fornecedoresChecklist .fornecedor-chk-item').forEach(item => {
+        const catsForn = (item.dataset.categorias || '').split(',').filter(Boolean);
+        const sugerido = catsForn.some(c => categoriasItens.has(c));
+        const badge = item.querySelector('.badge-sugerido-forn');
+        if (badge) badge.style.display = sugerido ? 'inline' : 'none';
+    });
+}
+
+async function salvarItensCotacao() {
+    if (_idCot === 0) return;
+    const formData = new FormData();
+    formData.append('id', _idCot);
+    formData.append('itens_json', JSON.stringify(_itensCotacao));
+    
+    try {
+        const resp = await fetch(Scopi.url('/cotacoes/salvarItens'), { method:'POST', credentials:'include', body:formData, headers:{'X-Requested-With':'XMLHttpRequest'} });
+        const json = await resp.json();
+        if (json.sucesso) {
+            Scopi.toast('sucesso', json.mensagem);
+            setTimeout(() => location.reload(), 900);
+        } else {
+            Scopi.toast('alerta', json.mensagem);
+        }
+    } catch(e) {
+        Scopi.toast('alerta', 'Erro ao salvar itens.');
+    }
+}
+
+function renderItensCotacaoTabela() {
+    const tbody = document.querySelector('#tabItensCotacao tbody');
+    tbody.innerHTML = '';
+    
+    if (_itensCotacao.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#888;">Nenhum produto adicionado</td></tr>';
+        return;
+    }
+
+    _itensCotacao.forEach((it, idx) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td style="text-align:center; padding:8px 12px;">${idx+1}</td>
+            <td style="padding: 8px 12px;">${it.nome_produto} (${it.codigo_produto || ''})</td>
+            <td style="text-align:right; padding: 8px 12px;">${parseFloat(it.quantidade).toFixed(2)}</td>
+            <td style="padding: 8px 12px; font-size:0.85rem;">${it.prazo_entrega || '—'}</td>
+            <td style="text-align:center; padding: 8px 12px;">
+                ${_statusCot === 'aberto' ? `
+                    <button type="button" class="btn-icone" onclick="removerItemCotacaoTabela(${idx})" title="Remover">
+                        <img src="<?= BASE_URL ?>/public/assets/icons/iconeFechar.svg" style="width:12px;filter:brightness(0) saturate(100%) invert(18%) sepia(85%) saturate(2200%) hue-rotate(330deg);" alt="">
+                    </button>
+                    ${it.id ? `
+                    <button type="button" class="btn-icone" onclick="excluirItemCotacaoServidor(${it.id})" title="Excluir do Banco de Dados">
+                        <img src="<?= BASE_URL ?>/public/assets/icons/iconeLixeira.svg" style="width:12px;filter:brightness(0) saturate(100%) invert(18%) sepia(85%) saturate(2200%) hue-rotate(330deg);" alt="">
+                    </button>` : ''}
+                ` : ''}
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+    
+    const input = document.getElementById('itensCotJsonInput');
+    if (input) {
+        input.value = JSON.stringify(_itensCotacao);
+    }
+
+    atualizarBotoesCotacao();
+}
+
+function excluirItemCotacaoServidor(itemId) {
+    Scopi.confirmar('Deseja realmente apagar este item? A solicitação será revertida para "Em Aberto".', () => {
+        excluirItemCotacaoServidor_confirmed(itemId);
+    });
+    return;
+}
+
+function excluirItemCotacaoServidor_confirmed(itemId) {
+    
+    fetch(Scopi.url('/cotacoes/excluir_item'), {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
+        body: 'id=' + itemId
+    })
+    .then(r => r.json())
+    .then(json => {
+        if (json.sucesso) {
+            Scopi.toast('sucesso', json.mensagem);
+            _itensCotacao = _itensCotacao.filter(i => parseInt(i.id) !== parseInt(itemId));
+            renderItensCotacaoTabela();
+        } else {
+            Scopi.toast('alerta', json.mensagem);
+        }
+    })
+    .catch(e => Scopi.toast('alerta', 'Erro ao apagar.'));
+}
+
+async function buscarProdutoCotacao(codigo) {
+    if (!codigo) return;
+    try {
+        const resp = await fetch(Scopi.url('/produtos/consultar-codigo?codigo=' + encodeURIComponent(codigo)), {credentials:'include',headers:{'X-Requested-With':'XMLHttpRequest'}});
+        const json = await resp.json();
+        if (json.sucesso && json.dados) {
+            document.getElementById('cotProdutoId').value = json.dados.id;
+            document.getElementById('cotProdutoNome').textContent = json.dados.nome;
+        } else {
+            document.getElementById('cotProdutoId').value = '';
+            document.getElementById('cotProdutoNome').textContent = 'Produto não encontrado';
+            document.getElementById('cotProdutoNome').style.color = 'var(--alerta)';
+        }
+    } catch(e) { }
+}
+
+function adicionarItemCotacaoTabela() {
+    const pId = document.getElementById('cotProdutoId').value;
+    const pCod = document.getElementById('cotProdutoCodigo').value;
+    let pNome = document.getElementById('cotProdutoNome').textContent;
+    const qtd = parseFloat(document.getElementById('cotQtdInput').value);
+    const prazo = document.getElementById('cotPrazoSugeridoInput').value.trim();
+
+    if (!pId || !pNome || pNome === 'Produto não encontrado' || isNaN(qtd) || qtd <= 0) {
+        Scopi.toast('alerta', 'Selecione um produto válido e informe a quantidade.');
+        return;
+    }
+
+    const idx = _itensCotacao.findIndex(i => parseInt(i.produto_id) === parseInt(pId));
+    if (idx >= 0) {
+        _itensCotacao[idx].quantidade = parseFloat(_itensCotacao[idx].quantidade) + qtd;
+        if (prazo) _itensCotacao[idx].prazo_entrega = prazo;
+    } else {
+        _itensCotacao.push({
+            produto_id: pId,
+            codigo_produto: pCod,
+            nome_produto: pNome,
+            quantidade: qtd,
+            prazo_entrega: prazo
+        });
+    }
+
+    document.getElementById('cotProdutoId').value = '';
+    document.getElementById('cotProdutoCodigo').value = '';
+    document.getElementById('cotProdutoNome').textContent = '';
+    document.getElementById('cotQtdInput').value = '';
+    document.getElementById('cotPrazoSugeridoInput').value = '';
+
+    renderItensCotacaoTabela();
+}
+
+function removerItemCotacaoTabela(idx) {
+    _itensCotacao.splice(idx, 1);
+    atualizarBotoesCotacao();
+    renderItensCotacaoTabela();
+}
+
+function desfazerImportacao() {
+    if (_itensCotacaoAnterior.length === 0) {
+        Scopi.toast('alerta', 'Nenhuma importação para desfazer.');
+        return;
+    }
+    Scopi.confirmar('Deseja desfazer a importação de itens?', () => {
+        _itensCotacao = JSON.parse(JSON.stringify(_itensCotacaoAnterior));
+        _itensCotacaoAnterior = [];
+        atualizarBotoesCotacao();
+        renderItensCotacaoTabela();
+        Scopi.toast('sucesso', 'Importação desfeita.');
+    });
+}
+
+function atualizarBotoesCotacao() {
+    const temHistorico = _itensCotacaoAnterior && _itensCotacaoAnterior.length > 0;
+    const btnDesfazer = document.getElementById('btnDesfazerImportacao');
+    if (btnDesfazer) btnDesfazer.style.display = temHistorico ? 'inline-flex' : 'none';
+}
+
+function abrirModalFornecedores() {
+    // Limpar filtros
+    document.getElementById('filtroFornCodigoCot').value = '';
+    document.getElementById('filtroFornRazaoSocialCot').value = '';
+    document.getElementById('filtroFornFantasiaCot').value = '';
+    document.getElementById('filtroFornCnpjCot').value = '';
+    document.getElementById('filtroFornTipoCot').value = '';
+
+    document.querySelectorAll('#fornecedoresChecklist input[type=checkbox]').forEach(cb => {
+        cb.checked = false;
+        cb.disabled = false;
+    });
+
+    // Mostrar todos os fornecedores
+    document.querySelectorAll('.fornecedor-chk-item').forEach(item => {
+        item.style.display = 'flex';
+    });
+
+    if (_cotacaoDados && _cotacaoDados.fornecedores) {
+        _cotacaoDados.fornecedores.forEach(f => {
+            const cb = document.getElementById('forn_chk_' + f.fornecedor_id);
+            if (cb) {
+                cb.checked = true;
+                cb.disabled = true; // Já enviado
+            }
+        });
+    }
+    
+    _marcarFornecedoresSugeridos(_itensCotacao);
+    Scopi.abrirModal('modalFornecedoresCotacao');
+}
+
+async function enviarConvitesFornecedores() {
+    if (_idCot === 0) return;
+    
+    const fornecedorIds = [];
+    document.querySelectorAll('#fornecedoresChecklist input[type=checkbox]:checked:not(:disabled)').forEach(cb => {
+        fornecedorIds.push(cb.value);
+    });
+    
+    if (fornecedorIds.length === 0) {
+        Scopi.toast('alerta', 'Nenhum novo fornecedor selecionado para convite.');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('cotacao_id', _idCot);
+    fornecedorIds.forEach(id => formData.append('fornecedores[]', id));
+    
+    try {
+        const resp = await fetch(Scopi.url('/cotacoes/convidarFornecedores'), { method:'POST', credentials:'include', body:formData, headers:{'X-Requested-With':'XMLHttpRequest'} });
+        const json = await resp.json();
+        if (json.sucesso) {
+            Scopi.toast('sucesso', json.mensagem);
+            Scopi.fecharModal('modalFornecedoresCotacao');
+            Scopi.abrirRegistro('modalCotacao', 'formCotacao', '/cotacoes/dados', _idCot);
+        } else {
+            Scopi.toast('alerta', json.mensagem);
+        }
+    } catch(e) {
+        Scopi.toast('alerta', 'Erro ao convidar fornecedores.');
+    }
+}
+
+function abrirModalImportarItens() {
+    document.getElementById('itensSolicitacaoPreviewContainer').style.display = 'none';
+    document.getElementById('cotacSolicitacaoSel').innerHTML = '<option value="">Carregando...</option>';
+    carregarSolicitacoesAutorizadas();
+    Scopi.abrirModal('modalImportarCot');
 }
 
 async function carregarSolicitacoesAutorizadas() {
@@ -236,7 +795,7 @@ async function carregarSolicitacoesAutorizadas() {
     sel.innerHTML = '<option value="">Carregando solicitações...</option>';
     
     try {
-        const resp = await fetch(Scopi.url('/solicitacoes/autorizadas'), {headers:{'X-Requested-With':'XMLHttpRequest'}});
+        const resp = await fetch(Scopi.url('/solicitacoes/autorizadas'), {credentials:'include',headers:{'X-Requested-With':'XMLHttpRequest'}});
         const json = await resp.json();
         if (json.sucesso && json.dados) {
             let html = '<option value="">Selecione uma solicitação...</option>';
@@ -263,50 +822,139 @@ async function carregarItensSolicitacao(solicitacaoId) {
         return;
     }
     
-    tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;padding:10px;">Carregando itens...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:10px;">Carregando itens...</td></tr>';
     preview.style.display = 'block';
     
     try {
-        const resp = await fetch(Scopi.url(`/solicitacoes/dados?id=${solicitacaoId}`), {headers:{'X-Requested-With':'XMLHttpRequest'}});
+        const resp = await fetch(Scopi.url(`/solicitacoes/dados?id=${solicitacaoId}`), {credentials:'include',headers:{'X-Requested-With':'XMLHttpRequest'}});
         const json = await resp.json();
         if (json.sucesso && json.dados && json.dados.itens) {
-            let html = '';
-            json.dados.itens.forEach(item => {
-                html += `
-                    <tr>
-                        <td style="padding: 6px 10px;">${item.nome_produto} (${item.codigo_produto || '—'})</td>
-                        <td style="text-align: right; padding: 6px 10px; font-weight: 600;">${parseFloat(item.quantidade).toFixed(2)}</td>
-                    </tr>
+            tbody.innerHTML = '';
+            json.dados.itens.forEach((item, idx) => { if(item.status !== "autorizada") return;
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="width: 50px; text-align: center; padding: 8px 12px;"><input type="checkbox" class="chk-item-imp" value='${JSON.stringify({solicitacao_item_id: item.id, produto_id: item.produto_id, codigo_produto: item.codigo_produto, nome_produto: item.nome_produto, quantidade: item.quantidade})}'></td>
+                    <td style="padding: 8px 12px;">${item.nome_produto} (${item.codigo_produto || '—'})</td>
+                    <td style="text-align: right; padding: 8px 12px; font-weight: 600;">${parseFloat(item.quantidade).toFixed(2)}</td>
                 `;
+                tbody.appendChild(tr);
             });
-            tbody.innerHTML = html;
         } else {
-            tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;padding:10px;color:var(--alerta);">Erro ao carregar os itens desta solicitação.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:10px;color:var(--alerta);">Erro ao carregar os itens desta solicitação.</td></tr>';
         }
     } catch(e) {
-        tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;padding:10px;color:var(--alerta);">Erro na comunicação.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:10px;color:var(--alerta);">Erro na comunicação.</td></tr>';
     }
 }
 
-function filtrarFornecedoresChecklist(busca) {
-    const termo = busca.toLowerCase().trim();
-    document.querySelectorAll('.fornecedor-chk-item').forEach(item => {
-        const nome = item.dataset.nome || '';
-        const cnpj = item.dataset.cnpj || '';
-        if (nome.includes(termo) || cnpj.includes(termo)) {
-            item.style.display = 'flex';
-        } else {
-            item.style.display = 'none';
+async function importarItensSelecionados() {
+    const selecionados = document.querySelectorAll('.chk-item-imp:checked');
+    if (selecionados.length === 0) {
+        Scopi.toast('alerta', 'Selecione ao menos um item para importar.');
+        return;
+    }
+
+    // Salvar estado anterior para desfazer
+    _itensCotacaoAnterior = JSON.parse(JSON.stringify(_itensCotacao));
+
+    const sel = document.getElementById('cotacSolicitacaoSel');
+    const solicitacaoId = sel ? parseInt(sel.value) : 0;
+
+    if (solicitacaoId > 0 && _idCot > 0) {
+        try {
+            const resp = await fetch(Scopi.url('/cotacoes/vincular-solicitacao'), {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
+                body: new URLSearchParams({ cotacao_id: _idCot, solicitacao_id: solicitacaoId })
+            });
+            const json = await resp.json();
+            if (!json.sucesso) {
+                Scopi.toast('alerta', json.mensagem || 'Erro ao vincular solicitação.');
+            }
+        } catch(e) {
+            console.error(e);
         }
+    }
+    
+    selecionados.forEach(chk => {
+        const item = JSON.parse(chk.value);
+        const idx = _itensCotacao.findIndex(i => parseInt(i.produto_id) === parseInt(item.produto_id));
+        if (idx >= 0) {
+            _itensCotacao[idx].quantidade = parseFloat(_itensCotacao[idx].quantidade) + parseFloat(item.quantidade);
+        } else {
+            _itensCotacao.push(item);
+        }
+    });
+    
+    renderItensCotacaoTabela();
+    Scopi.toast('sucesso', 'Itens importados com sucesso.');
+    Scopi.fecharModal('modalImportarCot');
+}
+
+function filtrarFornecedoresChecklist() {
+    const codigo = document.getElementById('filtroFornCodigoCot')?.value.toLowerCase().trim() || '';
+    const razao = document.getElementById('filtroFornRazaoSocialCot')?.value.toLowerCase().trim() || '';
+    const fantasia = document.getElementById('filtroFornFantasiaCot')?.value.toLowerCase().trim() || '';
+    const cnpj = document.getElementById('filtroFornCnpjCot')?.value.toLowerCase().trim() || '';
+    const tipo = document.getElementById('filtroFornTipoCot')?.value.toLowerCase().trim() || '';
+    const categoriaId = document.getElementById('filtroFornCategoriaIdCot')?.value.trim() || '';
+
+    document.querySelectorAll('.fornecedor-chk-item').forEach(item => {
+        const itemCodigo = (item.dataset.codigo || '').toLowerCase();
+        const itemRazao = (item.dataset.razao || '').toLowerCase();
+        const itemFantasia = (item.dataset.fantasia || '').toLowerCase();
+        const itemCnpj = (item.dataset.cnpj || '').toLowerCase();
+        const itemTipo = (item.dataset.tipo || '').toLowerCase();
+        const itemCategorias = (item.dataset.categorias || '').split(',').filter(Boolean);
+
+        let match = true;
+
+        if (codigo && !itemCodigo.includes(codigo)) match = false;
+        if (razao && !itemRazao.includes(razao)) match = false;
+        if (fantasia && !itemFantasia.includes(fantasia)) match = false;
+        if (cnpj && !itemCnpj.includes(cnpj)) match = false;
+        if (tipo && !itemTipo.includes(tipo)) match = false;
+        if (categoriaId && !itemCategorias.includes(categoriaId)) match = false;
+
+        item.style.display = match ? 'flex' : 'none';
     });
 }
 
 function selecionarPropostaVencedora(cotacaoId, cotacaoFornecedorId) {
-    Scopi.confirmarAcao(
-        'Confirmar esta proposta como vencedora? Esta ação encerrará a cotação e gerará a Ordem de Compra correspondente.',
-        '/cotacoes/selecionar-vencedor',
-        { cotacao_id: cotacaoId, cotacao_fornecedor_id: cotacaoFornecedorId }
-    );
+    Scopi.confirmar('Deseja aprovar este fornecedor como vencedor?', () => {
+        Scopi.confirmar('Deseja gerar a ORDEM DE COMPRA automaticamente agora?', () => {
+            _selecionarPropostaVencedora_execute(cotacaoId, cotacaoFornecedorId, true);
+        }, () => {
+            _selecionarPropostaVencedora_execute(cotacaoId, cotacaoFornecedorId, false);
+        });
+    });
+}
+
+function _selecionarPropostaVencedora_execute(cotacaoId, cotacaoFornecedorId, gerarOC) {
+    // Mostra indicador de carregamento
+    const btnToast = Scopi.toast('info', 'Processando...', 5000);
+
+    fetch(Scopi.url('/cotacoes/selecionar-vencedor'), {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: `cotacao_id=${cotacaoId}&cotacao_fornecedor_id=${cotacaoFornecedorId}&gerar_oc=${gerarOC ? 1 : 0}`
+    })
+    .then(r => r.json())
+    .then(json => {
+        if (json.sucesso) {
+            Scopi.toast('sucesso', json.mensagem);
+            Scopi.abrirRegistro('modalCotacao', 'formCotacao', '/cotacoes/dados', cotacaoId, 'propostas');
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            Scopi.toast('alerta', json.mensagem);
+        }
+    })
+    .catch(e => Scopi.toast('alerta', 'Falha na requisição.'));
 }
 
 function renderMatrix(cotacao) {
@@ -330,11 +978,11 @@ function renderMatrix(cotacao) {
     `;
 
     fornecedores.forEach(f => {
-        let statusText = f.status.charAt(0).toUpperCase() + f.status.slice(1);
+        let statusText = Scopi.formatarStatus(f.status);
         let badgeClass = 'badge-pendente';
         if (f.status === 'respondido') badgeClass = 'badge-concluida';
         if (f.status === 'recusado') badgeClass = 'badge-cancelada';
-        if (f.status === 'visualizado') badgeClass = 'badge-em-aberto';
+        if (f.status === 'visualizado') badgeClass = 'badge-em-aberta';
 
         html += `
             <th style="padding: 10px; border-bottom: 2px solid var(--borda); text-align: center; min-width: 200px; border-left: 1px solid var(--borda); background-color: var(--fundo-app);">
@@ -367,16 +1015,18 @@ function renderMatrix(cotacao) {
             html += `<td style="padding: 10px; text-align: center; border-left: 1px solid var(--borda); vertical-align: top;">`;
             if (f.status === 'respondido' && prop) {
                 const sub = parseFloat(prop.preco_unitario) * parseFloat(item.quantidade);
-                const desc = parseFloat(prop.desconto_valor || 0);
-                const subComDesc = Math.max(0, sub - desc);
+                const taxas = parseFloat(prop.taxas || 0);
+                const subTotalItem = sub + taxas;
                 html += `
                     <div style="font-weight: 600; color: var(--media);">${formatarMoeda(prop.preco_unitario)}</div>
                     <div style="font-size: 0.75rem; color: #666; margin-top: 2px;">Subtotal: ${formatarMoeda(sub)}</div>
-                    ${desc > 0 ? `
-                        <div style="font-size: 0.72rem; color: var(--alerta); margin-top: 1px;">Desc: -${formatarMoeda(desc)}</div>
-                        <div style="font-size: 0.75rem; color: #2e7d32; font-weight: 600;">Total: ${formatarMoeda(subComDesc)}</div>
+                    ${taxas > 0 ? `
+                        <div style="font-size: 0.72rem; color: var(--alerta); margin-top: 1px;">Taxas: +${formatarMoeda(taxas)}</div>
+                        <div style="font-size: 0.75rem; color: #2e7d32; font-weight: 600;">Total: ${formatarMoeda(subTotalItem)}</div>
                     ` : ''}
                     <div style="font-size: 0.72rem; color: #444; margin-top: 4px;">Prazo: ${prop.prazo_entrega} dias</div>
+                    <div style="font-size: 0.72rem; color: #444; margin-top: 2px;">Cond. Pagto: ${prop.condicao_pagamento || '—'}</div>
+                    <div style="font-size: 0.72rem; color: #444; margin-top: 2px;">Garantia: ${prop.garantia || '—'}</div>
                     ${prop.observacao ? `<div style="font-size: 0.70rem; color: #888; font-style: italic; margin-top: 4px; max-width: 180px; margin-left: auto; margin-right: auto; line-height: 1.2;">Obs: ${prop.observacao}</div>` : ''}
                 `;
             } else {
@@ -407,16 +1057,6 @@ function renderMatrix(cotacao) {
         return txt;
     });
 
-    html += renderHeaderParamRow('Condição Pagamento', f => {
-        if (f.status !== 'respondido') return '—';
-        return f.condicao_pagamento || 'Não informado';
-    });
-
-    html += renderHeaderParamRow('Impostos', f => {
-        if (f.status !== 'respondido') return '—';
-        return formatarMoeda(f.impostos);
-    });
-
     html += renderHeaderParamRow('Taxas Adicionais', f => {
         if (f.status !== 'respondido') return '—';
         return formatarMoeda(f.taxas_adicionais);
@@ -430,11 +1070,6 @@ function renderMatrix(cotacao) {
     html += renderHeaderParamRow('Validade Proposta', f => {
         if (f.status !== 'respondido') return '—';
         return formatarData(f.validade_proposta);
-    });
-
-    html += renderHeaderParamRow('Garantia', f => {
-        if (f.status !== 'respondido') return '—';
-        return f.garantia || '—';
     });
 
     html += renderHeaderParamRow('Observações Gerais', f => {
@@ -454,14 +1089,13 @@ function renderMatrix(cotacao) {
                 const prop = f.propostas ? f.propostas[item.produto_id] : null;
                 if (prop) {
                     const sub = parseFloat(prop.preco_unitario) * parseFloat(item.quantidade);
-                    const desc = parseFloat(prop.desconto_valor || 0);
-                    subtotalItens += Math.max(0, sub - desc);
+                    const taxas = parseFloat(prop.taxas || 0);
+                    subtotalItens += Math.max(0, sub + taxas);
                 }
             });
-            const impostos = parseFloat(f.impostos || 0);
-            const taxas = parseFloat(f.taxas_adicionais || 0);
+            const taxasGlobais = parseFloat(f.taxas_adicionais || 0);
 
-            const totalGeral = Math.max(0, subtotalItens + impostos + taxas);
+            const totalGeral = Math.max(0, subtotalItens + taxasGlobais);
             html += `<span style="font-weight:700;">${formatarMoeda(totalGeral)}</span>`;
         } else {
             html += `—`;
@@ -477,9 +1111,9 @@ function renderMatrix(cotacao) {
     fornecedores.forEach(f => {
         html += `<td style="padding: 12px 10px; text-align: center; border-left: 1px solid var(--borda);">`;
         if (parseInt(f.vencedora) === 1) {
-            html += `<span class="badge badge-concluida" style="padding: 6px 12px; font-size: 0.78rem;">✓ Vencedora (OC Gerada)</span>`;
+            html += `<span class="badge badge-concluida" style="padding: 6px 12px; font-size: 0.78rem;">âœ“ Vencedora (OC Gerada)</span>`;
         } else {
-            if (cotacao.status !== 'fechada' && cotacao.status !== 'cancelada' && f.status === 'respondido') {
+            if (cotacao.status !== 'fechada' && cotacao.status !== 'cancelado' && f.status === 'respondido') {
                 if (USER_PERFIL === 'comprador' || USER_PERFIL === 'administrador') {
                     html += `
                         <button type="button" class="btn" style="background-color: var(--media); color: var(--branco); font-size: 0.75rem; padding: 6px 12px;" 
@@ -506,3 +1140,5 @@ function renderMatrix(cotacao) {
     container.innerHTML = html;
 }
 </script>
+
+
