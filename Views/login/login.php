@@ -14,13 +14,13 @@ $flash = Auxiliares::obterFlash();
 <div class="pagina-login">
   <div class="login-esquerda">
     <div class="login-conteudo-esq">
-      <div style="margin-bottom:32px;">
-        <img src="<?= BASE_URL ?>/public/assets/icons/iconeSCOPi.svg" alt="SCOPi" style="width:200px;height:auto;filter:brightness(0) invert(1);display:block;margin:0 auto;">
+      <div style="margin-bottom:0;">
+        <img src="<?= BASE_URL ?>/public/assets/icons/iconeSCOPi.svg" alt="SCOPi" style="width:320px;height:auto;filter:brightness(0) invert(1);display:block;margin:0 auto;">
       </div>
-      <div style="margin-bottom:32px;">
+      <div style="margin-bottom:0;">
         <img src="<?= BASE_URL ?>/public/assets/icons/iconeLogotipo.svg" alt="SCOPi" style="height:50px;filter:brightness(0) invert(1);display:block;margin:0 auto;">
       </div>
-      <p class="login-descricao">Sistema de Compras e Orçamentos<br>de Produtos Inteligente</p>
+      <p class="login-descricao">SISTEMA DE COMPRAS E ORÇAMENTOS<br>DE PRODUTOS INTELIGENTE</p>
     </div>
   </div>
 
@@ -43,7 +43,7 @@ $flash = Auxiliares::obterFlash();
           <label for="email">E-mail</label>
           <div class="input-icone">
             <img src="<?= BASE_URL ?>/public/assets/icons/iconeEmail.svg" alt="">
-            <input type="email" id="email" name="email" placeholder="seu@email.com" required autofocus>
+            <input type="email" id="email" name="email"  required autofocus>
           </div>
         </div>
 
@@ -51,7 +51,7 @@ $flash = Auxiliares::obterFlash();
           <label for="senha">Senha</label>
           <div class="input-icone">
             <img src="<?= BASE_URL ?>/public/assets/icons/iconeSenha.svg" alt="">
-            <input type="password" id="senha" name="senha" placeholder="********" required>
+            <input type="password" id="senha" name="senha"  required>
           </div>
         </div>
 

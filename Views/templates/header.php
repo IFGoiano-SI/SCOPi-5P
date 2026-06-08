@@ -51,7 +51,7 @@ function subAberto(array $rotas, string $atual): bool {
     </div>
 
     <?php if (in_array($usuario['perfil'] ?? '', ['administrador', 'cadastrador', 'gerente'])): ?>
-    <?php $cAb = subAberto(['usuarios','departamentos','fornecedores','produtos','categorias'],$paginaAtual); ?>
+    <?php $cAb = subAberto(['usuarios','departamentos','fornecedores','produtos','categorias','condicoes-pagamento'],$paginaAtual); ?>
     <div class="nav-item <?= $cAb?'ativo aberto':'' ?>" data-tooltip="Cadastros">
       <?php if($cAb): ?><div class="selecao-ativa"></div><?php endif; ?>
       <button class="nav-link <?= $cAb?'ativo':'' ?>" onclick="toggleSubmenu(this)">
@@ -72,6 +72,7 @@ function subAberto(array $rotas, string $atual): bool {
         <li><a href="<?= BASE_URL ?>/produtos"      class="nav-link <?= pAti('produtos',$paginaAtual)?'ativo':'' ?>">
           <span class="texto-nav">Produtos</span></a></li>
         <li><a href="<?= BASE_URL ?>/categorias"    class="nav-link <?= pAti('categorias',$paginaAtual)?'ativo':'' ?>"><span class="texto-nav">Categorias</span></a></li>
+        <li><a href="<?= BASE_URL ?>/condicoes-pagamento" class="nav-link <?= pAti('condicoes-pagamento',$paginaAtual)?'ativo':'' ?>"><span class="texto-nav">Condições de Pagamento</span></a></li>
         <?php endif; ?>
       </ul>
     </div>
@@ -158,10 +159,6 @@ function subAberto(array $rotas, string $atual): bool {
     <div class="topbar-empresa">
       <span>Logo Contratante</span>
     </div>
-    <div class="topbar-titulo-area">
-      <div class="topbar-titulo-linha"></div>
-      <span class="topbar-titulo" id="topbarTitulo">SCOPi</span>
-    </div>
     <div class="topbar-direita">
       <button class="btn-notificacao" id="btnNotificacao" title="Notificações" onclick="Scopi.abrirNotificacoes()">
         <img src="<?= BASE_URL ?>/public/assets/icons/iconeNotificacao.svg" alt="Notificações">
@@ -171,6 +168,16 @@ function subAberto(array $rotas, string $atual): bool {
   </header>
 
   <main class="pagina">
+
+<script>
+  window.USER_ID = <?= (int)$usuario['id'] ?>;
+  window.USER_NOME = '<?= Auxiliares::escapar($usuario['nome']) ?>';
+  window.USER_EMAIL = '<?= Auxiliares::escapar($usuario['email']) ?>';
+  window.USER_PERFIL = '<?= $usuario['perfil'] ?>';
+  window.USER_DEPTO_ID = <?= (int)($usuario['departamento_id'] ?? 0) ?>;
+  window.USER_DEPTO_NOME = '<?= Auxiliares::escapar($usuario['departamento_nome'] ?? '—') ?>';
+  window.SCOPI_BASE = '<?= BASE_URL ?>';
+</script>
 
 <?php if(!empty($flash)): ?>
 <div class="mensagem-flash flash-<?= $flash['tipo'] ?>">

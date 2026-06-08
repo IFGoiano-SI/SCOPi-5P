@@ -102,6 +102,8 @@
 </div>
 <!-- ═══════════════ FIM MODAL NOTIFICAÇÕES ═══════════════ -->
 
+<?php include 'modais_globais.php'; ?>
+
 </div><!-- /conteudo -->
 </div><!-- /layout -->
 </body>

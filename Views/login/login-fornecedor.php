@@ -41,7 +41,7 @@
           <label for="cnpj">CNPJ da Empresa</label>
           <div class="input-icone">
             <img src="<?= BASE_URL ?>/public/assets/icons/iconeCadastro.svg" alt="">
-            <input type="text" id="cnpj" name="cnpj" placeholder="00.000.000/0000-00" maxlength="18" required autofocus oninput="mascararCnpj(this)">
+            <input type="text" id="cnpj" name="cnpj"  maxlength="18" required autofocus oninput="mascararCnpj(this)">
           </div>
         </div>
 

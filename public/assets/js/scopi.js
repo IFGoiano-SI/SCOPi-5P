@@ -1,4 +1,4 @@
-/**
+﻿/**
  * scopi.js — JavaScript principal do SCOPi
  * Sidebar retrátil, submenus, modais AJAX, sistema de notificações
  */
@@ -64,6 +64,33 @@ const Scopi = {
     return `${base}/${String(path).replace(/^\/+/, '')}`;
   },
 
+  formatarStatus(status) {
+    if (!status) return '—';
+    const mapa = {
+      'aberto': 'Aberto',
+      'em_aberto': 'Aberto',
+      'aberta': 'Aberto',
+      'autorizado': 'Autorizado',
+      'autorizada': 'Autorizado',
+      'em_cotacao': 'Em Cotação',
+      'fechada': 'Fechado',
+      'fechado': 'Fechado',
+      'enviado': 'Enviado',
+      'enviada': 'Enviado',
+      'parcialmente_atendido': 'Parcialmente Atendido',
+      'parcialmente_atendida': 'Parcialmente Atendido',
+      'concluido': 'Concluído',
+      'concluida': 'Concluído',
+      'cancelado': 'Cancelado',
+      'cancelada': 'Cancelado',
+      'recusado': 'Recusado',
+      'recusada': 'Recusado',
+      'registrada': 'Registrado',
+      'vinculada': 'Vinculado'
+    };
+    return mapa[status.toLowerCase()] || (status.charAt(0).toUpperCase() + status.slice(1).toLowerCase());
+  },
+
   /* ── Modais genéricos ────────────────────── */
   abrirModal(id) {
     const el = document.getElementById(id);
@@ -75,6 +102,12 @@ const Scopi = {
   fecharModal(id) {
     document.getElementById(id)?.classList.remove('aberto');
     if(!document.querySelector('.overlay-modal.aberto')) document.body.style.overflow = '';
+
+    // Limpa pilha de buscas aninhadas ao fechar modal de busca
+    if (id === 'modalBuscaGlobal') {
+      pilhaBuscasAninhadas = [];
+      document.getElementById('btnVoltarBusca').style.display = 'none';
+    }
   },
   fecharTodos() {
     document.querySelectorAll('.overlay-modal.aberto').forEach(m => m.classList.remove('aberto'));
@@ -83,12 +116,16 @@ const Scopi = {
 
   abrirCadastro(idModal, idForm) {
     const form = document.getElementById(idForm);
+    const overlay = document.getElementById(idModal);
     if(form) {
       form.reset();
       const campoId = form.querySelector('input[name="id"]');
       if(campoId) campoId.value = '0';
       const titulo = document.querySelector(`#${idModal} .modal-titulo span`);
-      if(titulo) titulo.textContent = 'Novo Cadastro';
+      if(titulo) {
+        if(!overlay.dataset.tituloBase) overlay.dataset.tituloBase = titulo.textContent.replace(/^(Cadastro de |Edição de Cadastro de |Histórico de Cadastro de )/, '').trim();
+        titulo.textContent = `Cadastro de ${overlay.dataset.tituloBase}`;
+      }
     }
     Scopi.ativarAba(idModal, 'editar');
     Scopi.abrirModal(idModal);
@@ -102,15 +139,22 @@ const Scopi = {
     if(!overlay.dataset.htmlOriginal) overlay.dataset.htmlOriginal = corpo.innerHTML;
     corpo.innerHTML = '<div class="carregando-modal"><div class="spinner"></div> Carregando...</div>';
     try {
-      const resp = await fetch(`${Scopi.url(urlDados)}?id=${id}`, {headers:{'X-Requested-With':'XMLHttpRequest'}});
+      const resp = await fetch(`${Scopi.url(urlDados)}?id=${id}`, {credentials:'include',headers:{'X-Requested-With':'XMLHttpRequest'}});
       const json = await resp.json();
       if(!json.sucesso) { Scopi.toast('erro', json.mensagem||'Erro ao carregar.'); Scopi.fecharModal(idModal); return; }
       corpo.innerHTML = overlay.dataset.htmlOriginal;
       Scopi.preencherVisualizacao(idModal, json.dados);
       Scopi.preencherFormulario(idForm, json.dados);
       const titulo = overlay.querySelector('.modal-titulo span');
-      let acao = (abaInicial === 'visualizar') ? 'Visualizar' : 'Editar';
-      if(titulo) titulo.textContent = `${acao} #${json.dados.codigo||json.dados.numero||json.dados.id}`;
+      if(titulo) {
+        if(!overlay.dataset.tituloBase) overlay.dataset.tituloBase = titulo.textContent.replace(/^(Cadastro de |Edição de Cadastro de |Histórico de Cadastro de )/, '').trim();
+        titulo.textContent = (abaInicial === 'visualizar') ? `Cadastro de ${overlay.dataset.tituloBase}` : `Edição de Cadastro de ${overlay.dataset.tituloBase}`;
+      }
+      
+      overlay.dataset.entidadeId = json.dados.id;
+      const matches = urlDados.match(/^\/([^\/]+)\//);
+      if(matches && matches[1]) overlay.dataset.entidadeNome = matches[1];
+
       Scopi.ativarAba(idModal, abaInicial);
     } catch(e) { Scopi.toast('erro','Falha na comunicação.'); Scopi.fecharModal(idModal); }
   },
@@ -120,7 +164,9 @@ const Scopi = {
     o?.querySelectorAll('[data-campo]').forEach(el => { el.textContent = dados[el.dataset.campo]??'—'; });
     o?.querySelectorAll('[data-badge]').forEach(el => {
       const v = dados[el.dataset.badge]??'';
-      el.textContent = v; el.className = `badge badge-${v.replace(/_/g,'-')}`;
+      const badgeKey = el.dataset.badge;
+      const textoFormatado = (badgeKey === 'status' || badgeKey === 'situacao') ? Scopi.formatarStatus(v) : v;
+      el.textContent = textoFormatado; el.className = `badge badge-${v.replace(/_/g,'-')}`;
     });
   },
   preencherFormulario(idForm, dados) {
@@ -144,6 +190,11 @@ const Scopi = {
     if(btnSalvar) {
       btnSalvar.style.display = (aba === 'visualizar') ? 'none' : 'inline-flex';
     }
+    
+    if (typeof window.scopiAbaChangeHook === 'function') {
+        window.scopiAbaChangeHook(idModal, aba);
+    }
+    window.dispatchEvent(new CustomEvent('scopiAbaChange', { detail: { idModal, aba } }));
   },
   async enviarFormulario(idForm, idModal, url, cb=null) {
     const form = document.getElementById(idForm);
@@ -151,7 +202,7 @@ const Scopi = {
     const btn = document.querySelector(`#${idModal} .btn-salvar`);
     if(btn) { btn.disabled=true; btn.textContent='Salvando...'; }
     try {
-      const resp = await fetch(Scopi.url(url), {method:'POST',body:new FormData(form),headers:{'X-Requested-With':'XMLHttpRequest'}});
+      const resp = await fetch(Scopi.url(url), {method:'POST',body:new FormData(form),credentials:'include',headers:{'X-Requested-With':'XMLHttpRequest'}});
       const json = await resp.json();
       if(json.sucesso) { Scopi.fecharModal(idModal); Scopi.toast('sucesso',json.mensagem||'Salvo!'); if(cb) cb(json); else setTimeout(()=>location.reload(),900); }
       else Scopi.toast('erro',json.mensagem||'Erro ao salvar.');
@@ -159,15 +210,16 @@ const Scopi = {
     finally { if(btn) { btn.disabled=false; btn.textContent='Salvar'; } }
   },
   async confirmarAcao(msg, url, dados, cb=null) {
-    if(!confirm(msg)) return;
-    try {
-      const fd = new FormData();
-      Object.entries(dados).forEach(([k,v]) => fd.append(k,v));
-      const resp = await fetch(Scopi.url(url), {method:'POST',body:fd,headers:{'X-Requested-With':'XMLHttpRequest'}});
-      const json = await resp.json();
-      if(json.sucesso) { Scopi.toast('sucesso',json.mensagem); if(cb) cb(json); else setTimeout(()=>location.reload(),900); }
-      else Scopi.toast('erro',json.mensagem);
-    } catch(e) { Scopi.toast('erro','Falha na comunicação.'); }
+    Scopi.confirmar(msg, async () => {
+      try {
+        const fd = new FormData();
+        Object.entries(dados).forEach(([k,v]) => fd.append(k,v));
+        const resp = await fetch(Scopi.url(url), {method:'POST',body:fd,credentials:'include',headers:{'X-Requested-With':'XMLHttpRequest'}});
+        const json = await resp.json();
+        if(json.sucesso) { Scopi.toast('sucesso',json.mensagem); if(cb) cb(json); else setTimeout(()=>location.reload(),900); }
+        else Scopi.toast('erro',json.mensagem);
+      } catch(e) { Scopi.toast('erro','Falha na comunicação.'); }
+    });
   },
   toast(tipo, texto) {
     let el = document.getElementById('scopi-toast');
@@ -176,6 +228,38 @@ const Scopi = {
     requestAnimationFrame(()=>el.classList.add('visivel'));
     clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('visivel'),3500);
   },
+
+  confirmar(mensagem, callback, callbackNao) {
+    const modal = document.createElement('div');
+    modal.className = 'overlay-modal';
+    modal.innerHTML = `
+      <div class="modal modal-pequeno" style="max-width: 450px;">
+        <div class="modal-cabecalho">
+          <div class="modal-titulo"><img src="${Scopi.url('/public/assets/icons/iconeAlerta.svg')}" alt="" style="width:20px;height:20px;margin-right:8px;"> Confirmação</div>
+        </div>
+        <div class="modal-corpo" style="padding: 20px; text-align: center;">
+          <p style="margin: 0 0 20px 0; font-size: 1rem; line-height: 1.5;">${String(mensagem).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>
+        </div>
+        <div class="modal-rodape">
+          <button class="btn btn-secundario" id="btnCancelarAcao">Cancelar</button>
+          <button class="btn btn-perigo" id="btnConfirmarAcao">Confirmar</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    modal.classList.add('aberto');
+    const btnConfirmar = modal.querySelector('#btnConfirmarAcao');
+    const btnCancelar = modal.querySelector('#btnCancelarAcao');
+    btnConfirmar.addEventListener('click', () => {
+      modal.remove();
+      if(typeof callback === 'function') callback();
+    });
+    btnCancelar.addEventListener('click', () => {
+      modal.remove();
+      if(typeof callbackNao === 'function') callbackNao();
+    });
+  },
+
   toggleCheckboxes(master) {
     document.querySelectorAll('.checkbox-linha').forEach(cb => { cb.checked=master.checked; });
   },
@@ -186,279 +270,111 @@ const Scopi = {
     Scopi.abrirModal('modalNotificacoes');
   },
 
-  /* ════════════════════════════════════════════
-     Scopi.Notif — Sistema de Notificações
-     Dados mockados; em produção vêm de /notificacoes/dados
-     ════════════════════════════════════════════ */
   Notif: {
-
-    _ativa: null,       // ID da notificação aberta
-    _filtro: 'todas',   // filtro de categoria ativo
-
-    /**
-     * Banco de dados de notificações (mock)
-     * Em produção: fetch('/notificacoes/dados').then(r=>r.json())
-     * Cada notificação pode ter "referencias" com rota e texto clicável
-     */
-    _dados: [
-      {
-        id: 1, lida: false, categoria: 'solicitacao',
-        assunto: 'Sua solicitação foi autorizada',
-        remetente: 'Sistema SCOPi', tempo: 'há 10 minutos',
-        preview: 'A solicitação SOL-20260517-1234 foi aprovada pelo gerente.',
-        mensagem: `Sua solicitação foi aprovada com sucesso pelo gerente responsável.<br><br>
-          Clique no número abaixo para acompanhar o andamento:`,
-        referencias: [{ tipo: 'solicitacao', numero: 'SOL-20260517-1234', rota: '/solicitacoes?id=1234' }]
-      },
-      {
-        id: 2, lida: false, categoria: 'solicitacao',
-        assunto: 'Nova solicitação aguarda aprovação',
-        remetente: 'João da Silva', tempo: 'há 25 minutos',
-        preview: 'A solicitação SOL-20260517-1235 está aguardando sua aprovação.',
-        mensagem: `Uma nova solicitação foi registrada e aguarda sua aprovação como gerente.<br><br>
-          Acesse a solicitação para analisar e tomar uma decisão:`,
-        referencias: [{ tipo: 'solicitacao', numero: 'SOL-20260517-1235', rota: '/solicitacoes?id=1235' }]
-      },
-      {
-        id: 3, lida: false, categoria: 'ordem',
-        assunto: 'Ordem de Compra emitida',
-        remetente: 'Setor de Compras', tempo: 'há 1 hora',
-        preview: 'A ordem OC-20260517-0089 foi emitida para o fornecedor.',
-        mensagem: `Uma ordem de compra foi gerada a partir da cotação aprovada e enviada ao fornecedor.<br><br>
-          Acompanhe o status pela referência abaixo:`,
-        referencias: [{ tipo: 'ordem', numero: 'OC-20260517-0089', rota: '/ordens?id=89' }]
-      },
-      {
-        id: 4, lida: true, categoria: 'cotacao',
-        assunto: 'Fornecedor respondeu à cotação',
-        remetente: 'Sistema SCOPi', tempo: 'há 2 horas',
-        preview: 'O fornecedor Tecno Suprimentos respondeu à COT-20260517-0042.',
-        mensagem: `O fornecedor <strong>Tecno Suprimentos Ltda.</strong> enviou sua proposta para a cotação abaixo.<br><br>
-          Acesse a cotação para comparar propostas e selecionar o vencedor:`,
-        referencias: [{ tipo: 'cotacao', numero: 'COT-20260517-0042', rota: '/cotacoes?id=42' }]
-      },
-      {
-        id: 5, lida: true, categoria: 'nota',
-        assunto: 'Nota Fiscal recebida e registrada',
-        remetente: 'Contabilidade', tempo: 'há 3 horas',
-        preview: 'NF-e 000123456 referente à OC-20260517-0071 foi lançada.',
-        mensagem: `A nota fiscal eletrônica abaixo foi importada e vinculada à ordem de compra correspondente.<br><br>
-          Confira os detalhes:`,
-        referencias: [
-          { tipo: 'nota',  numero: 'NF-e 000123456',    rota: '/notas?id=456' },
-          { tipo: 'ordem', numero: 'OC-20260517-0071',  rota: '/ordens?id=71'  }
-        ]
-      },
-      {
-        id: 6, lida: true, categoria: 'alerta',
-        assunto: 'Cotação prestes a vencer',
-        remetente: 'Sistema SCOPi', tempo: 'há 5 horas',
-        preview: 'A cotação COT-20260516-0039 vence em 24 horas.',
-        mensagem: `<strong>Atenção!</strong> A cotação abaixo vence em menos de 24 horas e ainda não possui proposta selecionada.<br><br>
-          Acesse para analisar as propostas recebidas antes do prazo:`,
-        referencias: [{ tipo: 'cotacao', numero: 'COT-20260516-0039', rota: '/cotacoes?id=39' }]
-      },
-      {
-        id: 7, lida: true, categoria: 'solicitacao',
-        assunto: 'Solicitação cancelada',
-        remetente: 'Maria Oliveira', tempo: 'ontem',
-        preview: 'A solicitação SOL-20260516-1198 foi cancelada pelo solicitante.',
-        mensagem: `A solicitação abaixo foi cancelada pelo próprio solicitante antes de ser processada.<br><br>
-          Nenhuma ação é necessária da sua parte:`,
-        referencias: [{ tipo: 'solicitacao', numero: 'SOL-20260516-1198', rota: '/solicitacoes?id=1198' }]
-      },
-    ],
-
-    /* Ícone por categoria */
-    _icone(cat) {
-      const mapa = {
-        solicitacao: 'iconeSolicitacao.svg',
-        ordem:       'iconeOC.svg',
-        cotacao:     'iconeOC.svg',
-        nota:        'iconeNF.svg',
-        alerta:      'iconeAlerta.svg',
-        sistema:     'iconeMenu.svg',
-      };
-      return Scopi.url(`/public/assets/icons/${mapa[cat] || 'iconeAlerta.svg'}`);
-    },
-
-    /* Nome legível da categoria */
-    _nomeCat(cat) {
-      return { solicitacao:'Solicitação', ordem:'Ordem de Compra', cotacao:'Cotação', nota:'Nota Fiscal', alerta:'Alerta', sistema:'Sistema' }[cat] || cat;
-    },
-
-    /* Dados filtrados */
-    _filtrados() {
-      if(this._filtro === 'todas') return this._dados;
-      return this._dados.filter(n => n.categoria === this._filtro);
-    },
-
-    /* Conta não lidas */
-    _contarNaoLidas() {
-      return this._dados.filter(n => !n.lida).length;
-    },
-
-    /* Atualiza badge no topbar */
+    _ativa: null,
+    _filtro: 'todas',
+    _dados: [],
+    _icone(cat) { return Scopi.url(`/public/assets/icons/iconeAlerta.svg`); },
+    _nomeCat(cat) { return cat.charAt(0).toUpperCase() + cat.slice(1); },
+    _filtrados() { return this._filtro === 'todas' ? this._dados : this._dados.filter(n => n.categoria === this._filtro); },
+    _contarNaoLidas() { return this._dados.filter(n => !n.lida).length; },
     _atualizarBadge() {
-      const badge = document.getElementById('badgeNotif');
+      const badge = document.querySelector('#badgeNotif');
       if(!badge) return;
-      const c = this._contarNaoLidas();
-      badge.textContent = c > 9 ? '+9' : c;
-      badge.style.display = c === 0 ? 'none' : 'flex';
+      const count = this._contarNaoLidas();
+      badge.textContent = count;
+      badge.style.display = count > 0 ? 'flex' : 'none';
     },
+    async renderLista() {
+      try {
+        const resp = await fetch(Scopi.url(`/notificacoes/listar?categoria=${this._filtro}`), {credentials:'include',headers:{'X-Requested-With':'XMLHttpRequest'}});
+        const json = await resp.json();
+        if(json.sucesso && json.dados) {
+          this._dados = json.dados;
+          const cont = document.getElementById('notifLista');
+          if(!cont) return;
 
-    /* Renderiza a lista de notificações */
-    renderLista() {
-      const lista = document.getElementById('notifLista');
-      if(!lista) return;
-      const dados = this._filtrados();
+          const filtrados = this._filtrados();
+          if(filtrados.length === 0) {
+            cont.innerHTML = '<div style="padding:20px;text-align:center;color:#888;">Nenhuma notificação</div>';
+            return;
+          }
 
-      if(dados.length === 0) {
-        lista.innerHTML = `<div class="notif-vazio" style="padding:40px 20px;">
-          <img src="${Scopi.url('/public/assets/icons/iconeNotificacao.svg')}" alt="" style="width:40px;opacity:.25;display:block;margin:0 auto 8px;">
-          <p style="text-align:center;font-size:.75rem;color:#aaa;">Nenhuma notificação nesta categoria</p>
-        </div>`;
-        return;
-      }
-
-      lista.innerHTML = dados.map(n => `
-        <div class="notif-item ${n.lida?'':'nao-lida'} ${this._ativa===n.id?'ativa':''}"
-             data-id="${n.id}"
-             onclick="Scopi.Notif.abrirDetalhe(${n.id})">
-          <div class="notif-icone ${n.categoria}">
-            <div class="notif-icone-img" style="-webkit-mask-image: url('${this._icone(n.categoria)}'); mask-image: url('${this._icone(n.categoria)}');"></div>
-          </div>
-          <div class="notif-item-conteudo">
-            <div class="notif-assunto">${this._esc(n.assunto)}</div>
-            <div class="notif-preview">${this._esc(n.preview)}</div>
-            <span class="notif-tempo">${this._esc(n.tempo)}</span>
-          </div>
-        </div>
-      `).join('');
-
-      this._atualizarBadge();
-    },
-
-    /* Abre o detalhe de uma notificação */
-    abrirDetalhe(id) {
-      const n = this._dados.find(x => x.id === id);
-      if(!n) return;
-
-      // Marca como lida
-      n.lida = true;
-      this._ativa = id;
-
-      // Atualiza item na lista
-      document.querySelectorAll('.notif-item').forEach(el => {
-        el.classList.toggle('ativa', Number(el.dataset.id) === id);
-        if(Number(el.dataset.id) === id) el.classList.remove('nao-lida');
-      });
-      this._atualizarBadge();
-
-      // Monta o detalhe
-      const vazio    = document.getElementById('notifVazio');
-      const conteudo = document.getElementById('notifDetalheConteudo');
-      if(vazio)    vazio.style.display    = 'none';
-      if(conteudo) conteudo.style.display = 'flex';
-
-      // Assunto
-      const elAssunto = document.getElementById('notifDetAssunto');
-      if(elAssunto) elAssunto.textContent = n.assunto;
-
-      // Categoria badge
-      const elCat = document.getElementById('notifDetCategoria');
-      if(elCat) {
-        elCat.textContent = this._nomeCat(n.categoria);
-        elCat.className   = `notif-badge-cat ${n.categoria}`;
-      }
-
-      // Tempo e remetente
-      const elTempo = document.getElementById('notifDetTempo');
-      if(elTempo) elTempo.textContent = n.tempo;
-      const elRem = document.getElementById('notifDetRemetente');
-      if(elRem) elRem.textContent = n.remetente;
-
-      // Mensagem + referências clicáveis
-      const elTexto = document.getElementById('notifDetTexto');
-      if(elTexto) {
-        let html = `<p style="margin-bottom:14px;">${n.mensagem}</p>`;
-
-        if(n.referencias && n.referencias.length > 0) {
-          html += `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">`;
-          n.referencias.forEach(ref => {
-            html += `
-              <a href="${Scopi.url(ref.rota)}"
-                 class="notif-link-ref"
-                 onclick="Scopi.fecharModal('modalNotificacoes')"
-                 title="Ir para ${ref.numero}">
-                <div class="notif-link-img" style="-webkit-mask-image: url('${this._icone(ref.tipo)}'); mask-image: url('${this._icone(ref.tipo)}');"></div>
-                ${ref.numero}
-              </a>`;
+          let html = '';
+          filtrados.forEach(notif => {
+            html += `<div class="notif-item ${notif.lida ? '' : 'nao-lida'}" onclick="Scopi.Notif.abrirDetalhe(${notif.id})" style="cursor:pointer;">
+              <div class="notif-item-icon"><img src="${Scopi.url('/public/assets/icons/iconeAlerta.svg')}" style="width:16px;filter:brightness(0) invert(1);" alt=""></div>
+              <div class="notif-item-conteudo">
+                <div class="notif-item-assunto">${this._esc(notif.titulo)}</div>
+                <div class="notif-item-preview">${this._esc(notif.mensagem.substring(0, 60))}...</div>
+                <div class="notif-item-tempo">${notif.criado_em}</div>
+              </div>
+              ${!notif.lida ? '<div class="notif-item-indicador"></div>' : ''}
+            </div>`;
           });
-          html += `</div>`;
+          cont.innerHTML = html;
+          this._atualizarBadge();
         }
-        elTexto.innerHTML = html;
+      } catch(e) {
+        console.error('Erro ao carregar notificações:', e);
       }
-
-      // Botão marcar lida
-      const btnLida = document.getElementById('btnMarcarLida');
-      if(btnLida) btnLida.textContent = 'Marcada como lida ✓';
     },
+    async abrirDetalhe(id) {
+      try {
+        const resp = await fetch(Scopi.url(`/notificacoes/dados?id=${id}`), {credentials:'include',headers:{'X-Requested-With':'XMLHttpRequest'}});
+        const json = await resp.json();
+        if(json.sucesso && json.dados) {
+          const notif = json.dados;
+          document.getElementById('notifDetAssunto').textContent = this._esc(notif.titulo);
+          document.getElementById('notifDetCategoria').textContent = this._nomeCat(notif.categoria);
+          document.getElementById('notifDetTempo').textContent = notif.criado_em;
+          document.getElementById('notifDetRemetente').textContent = notif.remetente || 'Sistema';
+          document.getElementById('notifDetTexto').textContent = this._esc(notif.mensagem);
 
-    /* Marcar notificação ativa como lida */
-    marcarLida() {
-      if(this._ativa === null) return;
-      const n = this._dados.find(x => x.id === this._ativa);
-      if(n) n.lida = true;
-      this.renderLista();
-      // Reabre o detalhe para atualizar botão
-      this.abrirDetalhe(this._ativa);
+          document.getElementById('notifVazio').style.display = 'none';
+          document.getElementById('notifDetalheConteudo').style.display = 'flex';
+
+          document.getElementById('btnMarcarLida').textContent = notif.lida ? 'Marcar como não lida' : 'Marcar como lida';
+          document.getElementById('btnMarcarLida').onclick = () => this.marcarLida(id);
+
+          this._ativa = id;
+        }
+      } catch(e) {
+        console.error('Erro ao abrir notificação:', e);
+      }
     },
-
-    /* Excluir notificação ativa */
-    excluir() {
-      if(this._ativa === null) return;
-      this._dados = this._dados.filter(x => x.id !== this._ativa);
-      this._ativa = null;
-
-      // Oculta detalhe, mostra vazio
-      const vazio    = document.getElementById('notifVazio');
-      const conteudo = document.getElementById('notifDetalheConteudo');
-      if(vazio)    vazio.style.display    = 'flex';
-      if(conteudo) conteudo.style.display = 'none';
-
-      this.renderLista();
+    async marcarLida(id) {
+      try {
+        await fetch(Scopi.url(`/notificacoes/marcar-lida`), {method:'POST', credentials:'include', headers:{'Content-Type':'application/x-www-form-urlencoded','X-Requested-With':'XMLHttpRequest'}, body:`id=${id}`});
+        this.renderLista();
+      } catch(e) { console.error('Erro:', e); }
     },
-
-    /* Marcar todas como lidas */
-    lerTodas() {
-      this._dados.forEach(n => n.lida = true);
-      this.renderLista();
-      if(this._ativa !== null) this.abrirDetalhe(this._ativa);
+    async excluir(id) {
+      Scopi.confirmar('Deseja excluir esta notificação?', async () => {
+        try {
+          const resp = await fetch(Scopi.url(`/notificacoes/excluir`), {method:'POST', credentials:'include', headers:{'Content-Type':'application/x-www-form-urlencoded','X-Requested-With':'XMLHttpRequest'}, body:`id=${id}`});
+          const json = await resp.json();
+          if(json.sucesso) {
+            Scopi.fecharModal('notifDetalhModal');
+            this.renderLista();
+            Scopi.toast('sucesso', 'Notificação excluída');
+          }
+        } catch(e) { console.error('Erro:', e); }
+      });
     },
-
-    /* Filtrar por categoria */
+    async lerTodas() {
+      try {
+        await fetch(Scopi.url(`/notificacoes/ler-todas`), {method:'POST', credentials:'include', headers:{'X-Requested-With':'XMLHttpRequest'}});
+        this.renderLista();
+      } catch(e) { console.error('Erro:', e); }
+    },
     filtrar(cat, btn) {
       this._filtro = cat;
-      this._ativa  = null;
-
-      // Oculta detalhe
-      const vazio    = document.getElementById('notifVazio');
-      const conteudo = document.getElementById('notifDetalheConteudo');
-      if(vazio)    vazio.style.display    = 'flex';
-      if(conteudo) conteudo.style.display = 'none';
-
-      // Atualiza botões de filtro
       document.querySelectorAll('.notif-filtro-btn').forEach(b => b.classList.remove('ativo'));
-      btn?.classList.add('ativo');
-
+      btn.classList.add('ativo');
       this.renderLista();
     },
-
-    /* Escapa HTML */
-    _esc(str) {
-      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    }
+    _esc(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   }
 };
 
@@ -476,3 +392,343 @@ document.addEventListener('DOMContentLoaded', () => {
   /* Badge inicial */
   setTimeout(() => Scopi.Notif._atualizarBadge(), 100);
 });
+
+/* --------------------------------------------
+   MODAIS GLOBAIS (Busca e Histórico)
+   -------------------------------------------- */
+
+let buscaGlobalAtual = { tabela: '', idCodigo: '', idNome: '', filtros: {}, contexto: '' };
+let pilhaBuscasAninhadas = []; // Histórico de buscas aninhadas para navegação
+
+// Função para gerar filtros contextuais
+function gerarFiltrosBuscaGlobal(tabela, contexto = '') {
+    // Esconder busca por termo quando há filtros específicos
+    const divBuscaTermo = document.getElementById('divBuscaTermoGlobal');
+    if(divBuscaTermo) divBuscaTermo.style.display = 'none';
+
+    let html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px;">';
+
+    const criarCampo = (label, type = 'text', id, placeholder = '', onchange = '') => {
+        const changeEvent = onchange || `buscaGlobalAtual.filtros['${id}'] = this.value`;
+        return `<div style="display:flex;flex-direction:column;"><label style="font-size:0.85rem;font-weight:500;margin-bottom:4px;">${label}</label><input type="${type}" id="filtro_${id}" placeholder="${placeholder}" onchange="${changeEvent}" style="width:100%;padding:6px;border:1px solid #E4D7EA;border-radius:4px;font-size:0.9rem;"></div>`;
+    };
+
+    const criarSelect = (label, id, options) => {
+        const opts = options.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+        const onchange = `buscaGlobalAtual.filtros['${id}'] = this.value`;
+        return `<div style="display:flex;flex-direction:column;"><label style="font-size:0.85rem;font-weight:500;margin-bottom:4px;">${label}</label><select id="filtro_${id}" onchange="${onchange}" style="width:100%;padding:6px;border:1px solid #E4D7EA;border-radius:4px;font-size:0.9rem;">${opts}</select></div>`;
+    };
+
+    const criarCampoBuscaAninhada = (label, id, tabela, idCampoVisualizacao) => {
+        return `<div style="display:flex;flex-direction:column;">
+                    <label style="font-size:0.85rem;font-weight:500;margin-bottom:4px;">${label}</label>
+                    <div style="display:flex;gap:4px;">
+                        <input type="text" id="filtro_${id}_codigo" placeholder="Código..." onchange="buscaGlobalAtual.filtros['${id}'] = this.value" style="flex:1;padding:6px;border:1px solid #E4D7EA;border-radius:4px;font-size:0.9rem;">
+                        <button type="button" class="btn btn-primario" style="padding:4px 6px;font-size:0.8rem;" onclick="Scopi.iconeBuscaAninhada('${tabela}', 'filtro_${id}_codigo', '${idCampoVisualizacao}')"><img src="${Scopi.url('/public/assets/icons/iconeBusca.svg')}" style="width:13px;margin:0;" alt="Buscar"></button>
+                    </div>
+                    <span id="${idCampoVisualizacao}" style="font-size:0.85rem;color:#666;margin-top:4px;"></span>
+                </div>`;
+    };
+
+    switch(tabela) {
+        case 'usuarios':
+            html += criarCampo('Matrícula', 'text', 'matricula', 'Ex: 25000000');
+            html += criarCampo('Nome', 'text', 'nome', '');
+            html += criarCampoBuscaAninhada('Departamento', 'departamento_id', 'departamentos', 'nomeDeptoUsuario');
+            html += criarSelect('Perfil de Acesso', 'perfil', [
+                {value: '', label: 'Todos'},
+                {value: 'administrador', label: 'Administrador'},
+                {value: 'cadastrador', label: 'Cadastrador'},
+                {value: 'comprador', label: 'Comprador'},
+                {value: 'gerente', label: 'Gerente'},
+                {value: 'contabilidade', label: 'Contabilidade'},
+                {value: 'usuario', label: 'Usuário'}
+            ]);
+            break;
+
+        case 'departamentos':
+            html += criarCampo('Código', 'text', 'codigo', 'Ex: dep0000');
+            html += criarCampo('Nome', 'text', 'nome', '');
+            html += criarCampoBuscaAninhada('Gerente', 'gerente_id', 'usuarios', 'nomeGerenteDpto');
+            break;
+
+        case 'fornecedores':
+            html += criarCampo('Código', 'text', 'codigo', 'Ex: forn000000');
+            html += criarCampo('Razão Social', 'text', 'razao_social', '');
+            html += criarCampo('Nome Fantasia', 'text', 'nome_fantasia', '');
+            html += criarCampo('CNPJ', 'text', 'cnpj', 'Ex: 12.345.678/0001-90');
+            html += criarCampoBuscaAninhada('Categoria', 'categoria_id', 'categorias', 'nomeCategoriaForn');
+            break;
+
+        case 'produtos':
+            html += criarCampo('Código', 'text', 'codigo', 'Ex: prod000000');
+            html += criarCampo('Nome', 'text', 'nome', '');
+            html += criarCampoBuscaAninhada('Categoria', 'categoria_id', 'categorias', 'nomeCategoriaProd');
+            break;
+
+        case 'categorias':
+            html += criarCampo('Código', 'text', 'codigo', '');
+            html += criarCampo('Nome', 'text', 'nome', '');
+            break;
+
+        case 'condicoes_pagamento':
+            html += criarCampo('Código', 'text', 'codigo', '');
+            html += criarCampo('Descrição', 'text', 'descricao', '');
+            break;
+
+        case 'cotacoes':
+            html += criarCampo('Número', 'text', 'numero', 'Ex: cot00000');
+            html += criarSelect('Status', 'status', [
+                {value: '', label: 'Todos'},
+                {value: 'aberta', label: 'Aberta'},
+                {value: 'fechada', label: 'Fechada'},
+                {value: 'concluida', label: 'Concluída'},
+                {value: 'cancelada', label: 'Cancelada'}
+            ]);
+            html += criarCampoBuscaAninhada('Solicitação', 'solicitacao_id', 'solicitacoes', 'numSolicitacaoCot');
+            html += criarCampoBuscaAninhada('Usuário', 'usuario_id', 'usuarios', 'nomeUsuarioCot');
+            break;
+    }
+
+    html += '</div>';
+    return html;
+}
+
+Scopi.iconeBusca = function(tabela, idCampoCodigo, idCampoNome, filtrosExtras) {
+    buscaGlobalAtual = { tabela, idCodigo: idCampoCodigo, idNome: idCampoNome, filtros: { status: 'ativo' }, isAninhada: false };
+
+    // Configurar titulo
+    const titulos = {
+        'usuarios': 'Usuário',
+        'departamentos': 'Departamento',
+        'categorias': 'Categoria',
+        'produtos': 'Produto',
+        'fornecedores': 'Fornecedor',
+        'ordens': 'Ordem de Compra',
+        'cotacoes': 'Cotação',
+        'condicoes_pagamento': 'Condição de Pagamento'
+    };
+    document.getElementById('buscaGlobalEntidadeNome').textContent = titulos[tabela] || 'Registro';
+
+    // Limpar busca anterior
+    document.getElementById('inputBuscaGlobal').value = '';
+    document.getElementById('tbodyBuscaGlobal').innerHTML = '<tr><td colspan="5" style="text-align:center;color:#888;">Digite um termo e clique em buscar.</td></tr>';
+
+    // Gerar filtros contextuais
+    const filtrosDiv = document.getElementById('filtrosBuscaGlobal');
+    filtrosDiv.innerHTML = gerarFiltrosBuscaGlobal(tabela);
+    filtrosDiv.style.display = 'block';
+
+    // Configurar cabeçalho da tabela dinamicamente
+    let htmlHead = '<tr>';
+    if(tabela === 'usuarios') { htmlHead += '<th>Matrícula</th><th>Nome</th><th>Departamento</th>'; }
+    else if(tabela === 'produtos') { htmlHead += '<th>Código</th><th>Nome</th><th>Categoria</th>'; }
+    else if(tabela === 'fornecedores') { htmlHead += '<th>Código</th><th>Razão Social</th><th>Nome Fantasia</th><th>CNPJ</th><th>Localidade</th>'; }
+    else if(tabela === 'ordens' || tabela === 'cotacoes') { htmlHead += '<th>Número</th><th>Status</th>' + (tabela==='ordens'?'<th>Fornecedor</th>':''); }
+    else { htmlHead += '<th>Código</th><th>Descrição</th>'; }
+    htmlHead += '<th style="width:80px;"></th></tr>';
+    document.getElementById('theadBuscaGlobal').innerHTML = htmlHead;
+
+    Scopi.abrirModal('modalBuscaGlobal');
+    setTimeout(() => document.getElementById('inputBuscaGlobal').focus(), 100);
+};
+
+Scopi.iconeBuscaAninhada = function(tabela, idCampoCodigo, idCampoVisualizacao) {
+    if (buscaGlobalAtual.tabela) pilhaBuscasAninhadas.push({...buscaGlobalAtual});
+    buscaGlobalAtual = { tabela, idCodigo: idCampoCodigo, idNome: idCampoVisualizacao, filtros: { status: 'ativo' }, isAninhada: true };
+    document.getElementById('btnVoltarBusca').style.display = pilhaBuscasAninhadas.length > 0 ? 'flex' : 'none';
+
+    const titulos = {
+        'usuarios': 'Usuário',
+        'departamentos': 'Departamento',
+        'categorias': 'Categoria',
+        'produtos': 'Produto',
+        'fornecedores': 'Fornecedor',
+        'condicoes_pagamento': 'Condição de Pagamento'
+    };
+    document.getElementById('buscaGlobalEntidadeNome').textContent = titulos[tabela] || 'Registro';
+
+    document.getElementById('inputBuscaGlobal').value = '';
+    document.getElementById('tbodyBuscaGlobal').innerHTML = '<tr><td colspan="5" style="text-align:center;color:#888;">Digite um termo e clique em buscar.</td></tr>';
+
+    const filtrosDiv = document.getElementById('filtrosBuscaGlobal');
+    filtrosDiv.innerHTML = gerarFiltrosBuscaGlobal(tabela);
+    filtrosDiv.style.display = 'block';
+
+    let htmlHead = '<tr>';
+    if(tabela === 'usuarios') { htmlHead += '<th>Matrícula</th><th>Nome</th><th>Departamento</th>'; }
+    else if(tabela === 'produtos') { htmlHead += '<th>Código</th><th>Nome</th><th>Categoria</th>'; }
+    else if(tabela === 'fornecedores') { htmlHead += '<th>Código</th><th>Razão Social</th><th>Nome Fantasia</th><th>CNPJ</th>'; }
+    else { htmlHead += '<th>Código</th><th>Descrição</th>'; }
+    htmlHead += '<th style="width:80px;"></th></tr>';
+    document.getElementById('theadBuscaGlobal').innerHTML = htmlHead;
+
+    Scopi.abrirModal('modalBuscaGlobal');
+    setTimeout(() => document.getElementById('inputBuscaGlobal').focus(), 100);
+};
+
+Scopi.voltarBuscaAninhada = function() {
+    if (pilhaBuscasAninhadas.length === 0) return;
+
+    const buscaAnterior = pilhaBuscasAninhadas.pop();
+    buscaGlobalAtual = buscaAnterior;
+
+    const titulos = {
+        'usuarios': 'Usuário',
+        'departamentos': 'Departamento',
+        'categorias': 'Categoria',
+        'produtos': 'Produto',
+        'fornecedores': 'Fornecedor',
+        'condicoes_pagamento': 'Condição de Pagamento'
+    };
+    document.getElementById('buscaGlobalEntidadeNome').textContent = titulos[buscaAnterior.tabela] || 'Registro';
+
+    document.getElementById('inputBuscaGlobal').value = '';
+    document.getElementById('tbodyBuscaGlobal').innerHTML = '<tr><td colspan="5" style="text-align:center;color:#888;">Digite um termo e clique em buscar.</td></tr>';
+
+    const filtrosDiv = document.getElementById('filtrosBuscaGlobal');
+    filtrosDiv.innerHTML = gerarFiltrosBuscaGlobal(buscaAnterior.tabela);
+    filtrosDiv.style.display = 'block';
+
+    let htmlHead = '<tr>';
+    const tabela = buscaAnterior.tabela;
+    if(tabela === 'usuarios') { htmlHead += '<th>Matrícula</th><th>Nome</th><th>Departamento</th>'; }
+    else if(tabela === 'produtos') { htmlHead += '<th>Código</th><th>Nome</th><th>Categoria</th>'; }
+    else if(tabela === 'fornecedores') { htmlHead += '<th>Código</th><th>Razão Social</th><th>Nome Fantasia</th><th>CNPJ</th>'; }
+    else { htmlHead += '<th>Código</th><th>Descrição</th>'; }
+    htmlHead += '<th style="width:80px;"></th></tr>';
+    document.getElementById('theadBuscaGlobal').innerHTML = htmlHead;
+
+    // Atualiza visibilidade do botão voltar
+    document.getElementById('btnVoltarBusca').style.display = pilhaBuscasAninhadas.length > 0 ? 'flex' : 'none';
+
+    setTimeout(() => document.getElementById('inputBuscaGlobal').focus(), 100);
+};
+
+Scopi.executarBuscaGlobal = async function() {
+    const termo = document.getElementById('inputBuscaGlobal').value.trim();
+    if (termo.length < 2 && termo !== '') {
+        alert('Digite pelo menos 2 caracteres para buscar.');
+        return;
+    }
+
+    const tbody = document.getElementById('tbodyBuscaGlobal');
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Buscando...</td></tr>';
+
+    try {
+        // Construir URL com TODOS os filtros
+        let url = '/busca-global/dados?tabela=' + buscaGlobalAtual.tabela + '&termo=' + encodeURIComponent(termo);
+
+        // Adicionar todos os filtros presentes no objeto
+        Object.keys(buscaGlobalAtual.filtros).forEach(key => {
+            const valor = buscaGlobalAtual.filtros[key];
+            if (valor && valor !== '') {
+                url += '&' + encodeURIComponent(key) + '=' + encodeURIComponent(valor);
+            }
+        });
+
+        const resp = await fetch(Scopi.url(url), {credentials:'include'});
+        const res = await resp.json();
+
+        if (!res.sucesso) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:red;">' + res.mensagem + '</td></tr>';
+            return;
+        }
+
+        if (res.dados.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#888;">Nenhum resultado encontrado.</td></tr>';
+            return;
+        }
+
+        let html = '';
+        res.dados.forEach(d => {
+            html += '<tr>';
+            html += '<td>' + (d.identificador||'') + '</td>';
+            html += '<td>' + (d.descricao||'') + '</td>';
+
+            if(buscaGlobalAtual.tabela === 'usuarios' || buscaGlobalAtual.tabela === 'produtos') {
+                html += '<td>' + (d.extra1||'') + '</td>';
+            } else if (buscaGlobalAtual.tabela === 'fornecedores') {
+                html += '<td>' + (d.extra1||'') + '</td>';
+                html += '<td>' + (d.extra2||'') + '</td>';
+            } else if (buscaGlobalAtual.tabela === 'ordens') {
+                html += '<td>' + (d.extra1||'') + '</td>';
+            }
+
+            html += '<td><button class="btn btn-primario" style="padding:4px 8px;font-size:0.75rem;" onclick="Scopi.selecionarBuscaGlobal(\'' + d.identificador + '\', \'' + d.descricao.replace(/'/g, "\\'") + '\')">Selecionar</button></td>';
+            html += '</tr>';
+        });
+        tbody.innerHTML = html;
+
+    } catch(e) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:red;">Erro de conexão.</td></tr>';
+    }
+};
+
+Scopi.selecionarBuscaGlobal = function(codigo, nome) {
+    const inputCod = document.getElementById(buscaGlobalAtual.idCodigo);
+    if(inputCod) {
+        inputCod.value = codigo;
+        inputCod.dispatchEvent(new Event('blur'));
+        inputCod.dispatchEvent(new Event('change'));
+    }
+
+    if(buscaGlobalAtual.idNome) {
+        const elNome = document.getElementById(buscaGlobalAtual.idNome);
+        if(elNome) {
+            if(elNome.tagName === 'INPUT') {
+                elNome.value = nome;
+            } else {
+                elNome.textContent = nome;
+                elNome.style.display = 'inline';
+            }
+        }
+    }
+
+    Scopi.fecharModal('modalBuscaGlobal');
+};
+
+Scopi.abrirHistorico = async function(entidade, entidadeId, tituloAmigavel = 'Histórico') {
+    document.getElementById('historicoGlobalTitulo').textContent = `Histórico de Cadastro de ${tituloAmigavel}`;
+    const timeline = document.getElementById('timelineHistorico');
+    const vazio = document.getElementById('historicoVazio');
+    
+    timeline.innerHTML = '<div style="padding: 20px;">Carregando...</div>';
+    vazio.style.display = 'none';
+    
+    Scopi.abrirModal('modalHistoricoGlobal');
+    
+    try {
+        const resp = await fetch(Scopi.url('/historico/dados?entidade=' + entidade + '&entidade_id=' + entidadeId), {credentials:'include'});
+        const res = await resp.json();
+        
+        if(!res.sucesso || !res.dados || res.dados.length === 0) {
+            timeline.innerHTML = '';
+            vazio.style.display = 'block';
+            return;
+        }
+        
+        let html = '';
+        res.dados.forEach(h => {
+            let acaoMsg = h.acao || 'Atualização';
+            
+            html += '<div style="margin-bottom: 20px; position: relative;">';
+            html += '<div style="position: absolute; left: -26px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: var(--primaria); border: 2px solid #fff;"></div>';
+            html += '<div style="font-weight: 600; color: var(--texto-principal); margin-bottom: 2px;">' + acaoMsg + '</div>';
+            html += '<div style="font-size: 0.8rem; color: var(--texto-secundario); margin-bottom: 6px;">';
+            html += '<span>' + h.data_hora_formatada + '</span> • <span>Por: ' + (h.nome_usuario||'Sistema') + '</span>';
+            html += '</div>';
+            
+            if(h.detalhes_html) { html += '<div style="font-size: 0.8rem; color: #555; margin-top: 4px; line-height: 1.4;">' + h.detalhes_html + '</div>'; }
+            
+            html += '</div>';
+        });
+        
+        timeline.innerHTML = html;
+        
+    } catch(e) {
+        timeline.innerHTML = '';
+        vazio.style.display = 'block';
+        vazio.textContent = 'Erro ao carregar histórico.';
+    }
+};

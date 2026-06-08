@@ -25,7 +25,7 @@ function subAberto(array $rotas, string $atual): bool {
   <title>SCOPi</title>
   <link rel="stylesheet" href="<?= BASE_URL ?>/public/assets/css/estilo.css">
 </head>
-<body>
+<body data-perfil="<?= Auxiliares::escapar($usuario['perfil'] ?? '') ?>">
 <div class="layout">
 
 <!-- ═══════════════ SIDEBAR ═══════════════ -->
@@ -54,7 +54,7 @@ function subAberto(array $rotas, string $atual): bool {
     $podeCadastros = in_array($perfilUsuario, ['administrador','cadastrador','gerente','comprador','usuario']);
     ?>
     <?php if($podeCadastros): ?>
-    <?php $cAb = subAberto(['usuarios','departamentos','fornecedores','produtos','categorias'],$paginaAtual); ?>
+    <?php $cAb = subAberto(['usuarios','departamentos','fornecedores','produtos','categorias','condicoes-pagamento'],$paginaAtual); ?>
     <div class="nav-item <?= $cAb?'ativo aberto':'' ?>" data-tooltip="Cadastros">
       <?php if($cAb): ?><div class="selecao-ativa"></div><?php endif; ?>
       <button class="nav-link <?= $cAb?'ativo':'' ?>" onclick="toggleSubmenu(this)">
@@ -76,6 +76,8 @@ function subAberto(array $rotas, string $atual): bool {
           <span class="texto-nav">Produtos</span></a></li>
         <li><a href="<?= BASE_URL ?>/categorias"    class="nav-link <?= pAti('categorias',$paginaAtual)?'ativo':'' ?>">
           <span class="texto-nav">Categorias</span></a></li>
+        <li><a href="<?= BASE_URL ?>/condicoes-pagamento" class="nav-link <?= pAti('condicoes-pagamento',$paginaAtual)?'ativo':'' ?>">
+          <span class="texto-nav">Condições de Pagamento</span></a></li>
         <?php endif; ?>
       </ul>
     </div>
