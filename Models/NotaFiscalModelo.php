@@ -11,11 +11,18 @@ class NotaFiscalModelo extends ModeloBase {
     }
 
     public function listarComFiltros(array $filtros = []): array {
-        $sql = "SELECT nf.*, f.razao_social AS nome_fornecedor FROM notas_fiscais nf LEFT JOIN fornecedores f ON f.id=nf.fornecedor_id WHERE 1=1";
+        $sql = "SELECT DISTINCT nf.*, f.razao_social AS nome_fornecedor, o.numero AS ordem_numero 
+                FROM notas_fiscais nf 
+                LEFT JOIN fornecedores f ON f.id=nf.fornecedor_id 
+                LEFT JOIN nota_fiscal_ordens nfo ON nfo.nota_fiscal_id = nf.id
+                LEFT JOIN ordens_compra o ON o.id = nfo.ordem_id
+                WHERE 1=1";
         $p = [];
         if (!empty($filtros['numero']))  { $sql .= ' AND nf.numero LIKE :num';    $p[':num']    = "%{$filtros['numero']}%"; }
-        if (!empty($filtros['chave']))   { $sql .= ' AND nf.chave_acesso LIKE :chave'; $p[':chave'] = "%{$filtros['chave']}%"; }
-        if (!empty($filtros['periodo'])) { $sql .= ' AND DATE(nf.data_emissao)>=:per'; $p[':per'] = $filtros['periodo']; }
+        if (!empty($filtros['fornecedor_codigo'])) { $sql .= ' AND f.codigo = :fcod'; $p[':fcod'] = $filtros['fornecedor_codigo']; }
+        if (!empty($filtros['ordem_numero'])) { $sql .= ' AND o.numero LIKE :ordnum'; $p[':ordnum'] = "%{$filtros['ordem_numero']}%"; }
+        if (!empty($filtros['data_inicial'])) { $sql .= ' AND DATE(nf.data_emissao) >= :dti'; $p[':dti'] = $filtros['data_inicial']; }
+        if (!empty($filtros['data_final'])) { $sql .= ' AND DATE(nf.data_emissao) <= :dtf'; $p[':dtf'] = $filtros['data_final']; }
         if (!empty($filtros['status']))  { $sql .= ' AND nf.status = :status'; $p[':status'] = $filtros['status']; }
         $sql .= ' ORDER BY nf.data_emissao DESC';
         $q = $this->bd->prepare($sql); $q->execute($p);
@@ -61,13 +68,13 @@ class NotaFiscalModelo extends ModeloBase {
                 numero, serie, chave_acesso, fornecedor_id, usuario_id,
                 natureza_operacao, data_emissao, data_entrada,
                 modalidade_frete, transportadora, peso,
-                valor_produtos, valor_frete, valor_desconto, valor_impostos,
+                valor_produtos, valor_desconto, valor_impostos,
                 taxas_adicionais, valor_total, observacoes, xml_nfe, status, criado_em
             ) VALUES (
                 :num, :serie, :chave, :fid, :uid,
                 :nat, :dt_emissao, :dt_entrada,
                 :frete, :transp, :peso,
-                :v_prod, :v_frete, :v_desc, :v_imp,
+                :v_prod, :v_desc, :v_imp,
                 :v_taxas, :v_total, :obs, :xml, 'registrada', NOW()
             )
         ");
@@ -84,7 +91,6 @@ class NotaFiscalModelo extends ModeloBase {
             ':transp' => $dados['transportadora'] ?? null,
             ':peso' => $dados['peso'] ?? null,
             ':v_prod' => (float)($dados['valor_produtos'] ?? 0),
-            ':v_frete' => (float)($dados['valor_frete'] ?? 0),
             ':v_desc' => (float)($dados['valor_desconto'] ?? 0),
             ':v_imp' => (float)($dados['valor_impostos'] ?? 0),
             ':v_taxas' => (float)($dados['taxas_adicionais'] ?? 0),
@@ -103,8 +109,8 @@ class NotaFiscalModelo extends ModeloBase {
     public function salvarItens(int $notaId, array $itens): void {
         $this->bd->prepare("DELETE FROM nota_fiscal_itens WHERE nota_id = :nid")->execute([':nid' => $notaId]);
         $q = $this->bd->prepare("
-            INSERT INTO nota_fiscal_itens (nota_id, produto_id, descricao, quantidade, unidade, preco_unitario, subtotal, ncm)
-            VALUES (:nid, :pid, :desc, :qtd, :und, :preco, :sub, :ncm)
+            INSERT INTO nota_fiscal_itens (nota_id, produto_id, descricao, quantidade, unidade, preco_unitario, subtotal, ncm, numero_item_pedido, ordem_compra_item_id)
+            VALUES (:nid, :pid, :desc, :qtd, :und, :preco, :sub, :ncm, :nItemPed, :oci_id)
         ");
         foreach ($itens as $item) {
             $q->execute([
@@ -115,7 +121,9 @@ class NotaFiscalModelo extends ModeloBase {
                 ':und' => $item['unidade'] ?? null,
                 ':preco' => (float)$item['preco_unitario'],
                 ':sub' => (float)$item['subtotal'],
-                ':ncm' => $item['ncm'] ?? null
+                ':ncm' => $item['ncm'] ?? null,
+                ':nItemPed' => $item['numero_item_pedido'] ?? null,
+                ':oci_id' => !empty($item['ordem_compra_item_id']) ? (int)$item['ordem_compra_item_id'] : null
             ]);
         }
     }
@@ -125,9 +133,12 @@ class NotaFiscalModelo extends ModeloBase {
      */
     public function buscarItens(int $notaId): array {
         $q = $this->bd->prepare("
-            SELECT nfi.*, p.nome AS produto_nome, p.codigo AS produto_codigo
+            SELECT nfi.*, p.nome AS produto_nome, p.codigo AS produto_codigo,
+                   oc.numero AS ordem_numero, oci.numero_item AS ordem_item_numero
             FROM nota_fiscal_itens nfi
             LEFT JOIN produtos p ON p.id = nfi.produto_id
+            LEFT JOIN ordem_compra_itens oci ON oci.id = nfi.ordem_compra_item_id
+            LEFT JOIN ordens_compra oc ON oc.id = oci.ordem_id
             WHERE nfi.nota_id = :nid
         ");
         $q->execute([':nid' => $notaId]);
@@ -137,19 +148,158 @@ class NotaFiscalModelo extends ModeloBase {
     /**
      * RF14: Vincular nota fiscal a uma ou mais ordens de compra (N:N)
      */
-    public function vincularOrdem(int $notaId, int $ordemId): bool {
+    public function vincularOrdem(int $notaId, int $ordemId, ?int $usuarioId = null): bool {
         // Verificar se já existe vínculo
         $qCheck = $this->bd->prepare("SELECT 1 FROM nota_fiscal_ordens WHERE nota_fiscal_id = :nid AND ordem_id = :oid");
         $qCheck->execute([':nid' => $notaId, ':oid' => $ordemId]);
         if ($qCheck->fetch()) return false;
 
         $q = $this->bd->prepare("INSERT INTO nota_fiscal_ordens (nota_fiscal_id, ordem_id) VALUES (:nid, :oid)");
-        $q->execute([':nid' => $notaId, ':oid' => $ordemId]);
+        $ok = $q->execute([':nid' => $notaId, ':oid' => $ordemId]);
 
-        // Atualizar status da NF para vinculada
-        $this->bd->prepare("UPDATE notas_fiscais SET status = 'vinculada', atualizado_em = NOW() WHERE id = :nid")->execute([':nid' => $notaId]);
+        if ($ok && $usuarioId) {
+            $this->registrarHistorico($this->tabela, $notaId, [], ['acao' => "Vínculo com Ordem #{$ordemId}"], $usuarioId);
+        }
 
-        return true;
+        return $ok;
+    }
+
+    public function lancarItem(int $nfItemId, string $numeroOc, int $numeroItemOc, int $usuarioId): array {
+        try {
+            $this->bd->beginTransaction();
+
+            $qNfItem = $this->bd->prepare("SELECT nota_id, quantidade FROM nota_fiscal_itens WHERE id = :id");
+            $qNfItem->execute([':id' => $nfItemId]);
+            $nfItem = $qNfItem->fetch();
+            if (!$nfItem) {
+                $this->bd->rollBack();
+                return ['sucesso' => false, 'mensagem' => 'Item da nota não encontrado.'];
+            }
+
+            $qOc = $this->bd->prepare("SELECT id, status FROM ordens_compra WHERE numero = :num");
+            $qOc->execute([':num' => $numeroOc]);
+            $ordem = $qOc->fetch();
+            if (!$ordem) {
+                $this->bd->rollBack();
+                return ['sucesso' => false, 'mensagem' => 'Ordem de Compra não encontrada.'];
+            }
+
+            $qOcItem = $this->bd->prepare("SELECT id, quantidade, status_item FROM ordem_compra_itens WHERE ordem_id = :oid AND numero_item = :num");
+            $qOcItem->execute([':oid' => $ordem['id'], ':num' => $numeroItemOc]);
+            $ocItem = $qOcItem->fetch();
+            if (!$ocItem) {
+                $this->bd->rollBack();
+                return ['sucesso' => false, 'mensagem' => 'Item não encontrado nesta Ordem de Compra.'];
+            }
+
+            // Validar quantidades
+            $qSoma = $this->bd->prepare("SELECT SUM(quantidade) as recebido FROM nota_fiscal_itens WHERE ordem_compra_item_id = :oid");
+            $qSoma->execute([':oid' => $ocItem['id']]);
+            $recebido = (float)$qSoma->fetchColumn();
+            
+            $saldoRestante = (float)$ocItem['quantidade'] - $recebido;
+            if ((float)$nfItem['quantidade'] > $saldoRestante) {
+                $this->bd->rollBack();
+                return ['sucesso' => false, 'mensagem' => "Saldo insuficiente na Ordem de Compra. Saldo: {$saldoRestante}."];
+            }
+
+            // Atualiza o item da nota com o vinculo
+            $this->bd->prepare("UPDATE nota_fiscal_itens SET ordem_compra_item_id = :oid WHERE id = :nfid")
+                     ->execute([':oid' => $ocItem['id'], ':nfid' => $nfItemId]);
+
+            // Atualiza status do item da OC
+            $novoRecebido = $recebido + (float)$nfItem['quantidade'];
+            if ($novoRecebido >= (float)$ocItem['quantidade']) {
+                $this->bd->prepare("UPDATE ordem_compra_itens SET status_item = 'atendido' WHERE id = :id")->execute([':id' => $ocItem['id']]);
+            } else {
+                $this->bd->prepare("UPDATE ordem_compra_itens SET status_item = 'parcial' WHERE id = :id")->execute([':id' => $ocItem['id']]);
+            }
+
+            // Vincular a ordem a nota
+            $this->vincularOrdem((int)$nfItem['nota_id'], (int)$ordem['id'], $usuarioId);
+
+            // Registrar histórico do lançamento
+            $this->registrarHistorico($this->tabela, (int)$nfItem['nota_id'], [], ['acao' => "Lançamento de {$nfItem['quantidade']} unidades na OC {$numeroOc}"], $usuarioId);
+
+            // Atualizar status das ordens
+            require_once __DIR__ . '/OrdemCompraModelo.php';
+            (new OrdemCompraModelo())->atualizarStatusPorItens((int)$ordem['id']);
+
+            // Atualiza status da NF se todos estiverem vinculados
+            $this->atualizarStatusNota((int)$nfItem['nota_id']);
+
+            $this->bd->commit();
+            return ['sucesso' => true, 'mensagem' => 'Lançamento efetuado com sucesso.'];
+
+        } catch (\Exception $e) {
+            if ($this->bd->inTransaction()) $this->bd->rollBack();
+            return ['sucesso' => false, 'mensagem' => 'Erro interno ao processar.'];
+        }
+    }
+
+    public function retirarLancamentoItem(int $nfItemId, int $usuarioId): bool {
+        try {
+            $this->bd->beginTransaction();
+
+            $qNfItem = $this->bd->prepare("SELECT nota_id, ordem_compra_item_id FROM nota_fiscal_itens WHERE id = :id");
+            $qNfItem->execute([':id' => $nfItemId]);
+            $nfItem = $qNfItem->fetch();
+            
+            if (!$nfItem || !$nfItem['ordem_compra_item_id']) {
+                $this->bd->rollBack();
+                return false;
+            }
+
+            $ocItemId = (int)$nfItem['ordem_compra_item_id'];
+            $notaId = (int)$nfItem['nota_id'];
+
+            // Limpar vinculo
+            $this->bd->prepare("UPDATE nota_fiscal_itens SET ordem_compra_item_id = NULL WHERE id = :id")->execute([':id' => $nfItemId]);
+
+            // Atualiza status do item da OC
+            $qSoma = $this->bd->prepare("SELECT SUM(quantidade) as recebido FROM nota_fiscal_itens WHERE ordem_compra_item_id = :oid");
+            $qSoma->execute([':oid' => $ocItemId]);
+            $recebido = (float)$qSoma->fetchColumn();
+
+            $qOcItem = $this->bd->prepare("SELECT ordem_id, quantidade FROM ordem_compra_itens WHERE id = :id");
+            $qOcItem->execute([':id' => $ocItemId]);
+            $ocItem = $qOcItem->fetch();
+
+            if ($recebido == 0) {
+                $this->bd->prepare("UPDATE ordem_compra_itens SET status_item = 'pendente' WHERE id = :id")->execute([':id' => $ocItemId]);
+            } else if ($recebido < (float)$ocItem['quantidade']) {
+                $this->bd->prepare("UPDATE ordem_compra_itens SET status_item = 'parcial' WHERE id = :id")->execute([':id' => $ocItemId]);
+            }
+
+            if ($ocItem) {
+                require_once __DIR__ . '/OrdemCompraModelo.php';
+                (new OrdemCompraModelo())->atualizarStatusPorItens((int)$ocItem['ordem_id']);
+            }
+
+            $this->atualizarStatusNota($notaId);
+
+            $this->bd->commit();
+            return true;
+        } catch (\Exception $e) {
+            if ($this->bd->inTransaction()) $this->bd->rollBack();
+            return false;
+        }
+    }
+
+    private function atualizarStatusNota(int $notaId): void {
+        $qTot = $this->bd->prepare("SELECT COUNT(*) FROM nota_fiscal_itens WHERE nota_id = :nid");
+        $qTot->execute([':nid' => $notaId]);
+        $total = (int)$qTot->fetchColumn();
+
+        $qVinc = $this->bd->prepare("SELECT COUNT(*) FROM nota_fiscal_itens WHERE nota_id = :nid AND ordem_compra_item_id IS NOT NULL");
+        $qVinc->execute([':nid' => $notaId]);
+        $vinculados = (int)$qVinc->fetchColumn();
+
+        if ($vinculados > 0 && $vinculados === $total) {
+            $this->bd->prepare("UPDATE notas_fiscais SET status = 'vinculada' WHERE id = :nid")->execute([':nid' => $notaId]);
+        } else {
+            $this->bd->prepare("UPDATE notas_fiscais SET status = 'registrada' WHERE id = :nid")->execute([':nid' => $notaId]);
+        }
     }
 
     /**
@@ -219,7 +369,6 @@ class NotaFiscalModelo extends ModeloBase {
             if (isset($nfe->total->ICMSTot)) {
                 $tot = $nfe->total->ICMSTot;
                 $dados['valor_produtos'] = (float)($tot->vProd ?? 0);
-                $dados['valor_frete'] = (float)($tot->vFrete ?? 0);
                 $dados['valor_desconto'] = (float)($tot->vDesc ?? 0);
                 $dados['valor_impostos'] = (float)($tot->vICMS ?? 0) + (float)($tot->vIPI ?? 0) + (float)($tot->vPIS ?? 0) + (float)($tot->vCOFINS ?? 0);
                 $dados['valor_total'] = (float)($tot->vNF ?? 0);
@@ -236,7 +385,8 @@ class NotaFiscalModelo extends ModeloBase {
                     'unidade' => (string)($prod->uCom ?? ''),
                     'preco_unitario' => (float)($prod->vUnCom ?? 0),
                     'subtotal' => (float)($prod->vProd ?? 0),
-                    'ncm' => (string)($prod->NCM ?? '')
+                    'ncm' => (string)($prod->NCM ?? ''),
+                    'numero_item_pedido' => (string)($prod->nItemPed ?? '')
                 ];
             }
 

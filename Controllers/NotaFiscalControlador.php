@@ -126,7 +126,7 @@ class NotaFiscalControlador extends BaseController {
         $divergencias = $this->m->verificarDivergencias($notaId, $ordemId);
 
         // Vincular mesmo com divergências (mas alertar o usuário)
-        $vinculado = $this->m->vincularOrdem($notaId, $ordemId);
+        $vinculado = $this->m->vincularOrdem($notaId, $ordemId, (int)$usuario['id']);
 
         if (!$vinculado) {
             $this->json(false, 'Este vínculo já existe.');
@@ -184,21 +184,50 @@ class NotaFiscalControlador extends BaseController {
         $filtros = $_GET;
         $notas = $this->m->listarComFiltros($filtros);
 
-        $cabecalhos = ['ID', 'Número', 'Chave Acesso', 'Fornecedor', 'Valor Total', 'Emissão', 'Criado Em'];
+        $cabecalhos = ['Número da NF', 'Ordem de Compra', 'Fornecedor', 'Data de Emissão', 'Valor', 'Status'];
         $dadosCsv = [];
         foreach ($notas as $n) {
             $dadosCsv[] = [
-                $n['id'],
                 $n['numero'],
-                $n['chave_acesso'] ?? '-',
+                $n['ordem_numero'] ?? '-',
                 $n['nome_fornecedor'] ?? '-',
-                number_format($n['valor_total'] ?? 0, 2, ',', '.'),
                 $n['data_emissao'] ? date('d/m/Y', strtotime($n['data_emissao'])) : '-',
-                date('d/m/Y H:i', strtotime($n['criado_em']))
+                number_format($n['valor_total'] ?? 0, 2, ',', '.'),
+                ucfirst($n['status'] ?? 'Pendente')
             ];
         }
 
         Auxiliares::gerarCSV('notas_fiscais', $cabecalhos, $dadosCsv);
+    }
+
+    public function lancar_item(): void {
+        Auxiliares::exigirPerfil('contabilidade', 'administrador');
+        $usuario = Auxiliares::usuarioLogado();
+        $nfItemId = (int)($_POST['nf_item_id'] ?? 0);
+        $numeroOc = $_POST['numero_oc'] ?? '';
+        $numeroItemOc = (int)($_POST['numero_item_oc'] ?? 0);
+
+        if ($nfItemId <= 0 || empty($numeroOc) || $numeroItemOc <= 0) {
+            $this->json(false, 'Preencha a Ordem de Compra e o Item da Ordem.');
+            return;
+        }
+
+        $res = $this->m->lancarItem($nfItemId, $numeroOc, $numeroItemOc, $usuario['id']);
+        $this->json($res['sucesso'], $res['mensagem']);
+    }
+
+    public function retirar_lancamento_item(): void {
+        Auxiliares::exigirPerfil('contabilidade', 'administrador');
+        $usuario = Auxiliares::usuarioLogado();
+        $nfItemId = (int)($_POST['nf_item_id'] ?? 0);
+
+        if ($nfItemId <= 0) {
+            $this->json(false, 'Item inválido.');
+            return;
+        }
+
+        $ok = $this->m->retirarLancamentoItem($nfItemId, $usuario['id']);
+        $this->json($ok, $ok ? 'Lançamento desfeito com sucesso.' : 'Erro ao desfazer lançamento. Talvez o item não estivesse lançado.');
     }
 
     public function imprimir(): void {
