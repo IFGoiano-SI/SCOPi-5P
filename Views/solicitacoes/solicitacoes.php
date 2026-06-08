@@ -1,23 +1,45 @@
-<?php use Config\Auxiliares; ?>
+﻿<?php use Config\Auxiliares; ?>
 <script>document.getElementById('topbarTitulo').textContent = 'Solicitações';</script>
 <div class="pagina-cabecalho"><h1 class="pagina-titulo">Solicitações</h1><p class="pagina-subtitulo">Registro e acompanhamento de solicitações de produto</p></div>
 <div class="painel-filtros">
   <div class="filtros-cabecalho"><img src="<?= BASE_URL ?>/public/assets/icons/iconeFiltro.svg" alt=""><span>Filtros</span></div>
   <form method="GET" action="<?= BASE_URL ?>/solicitacoes"><div class="filtros-campos">
-    <div class="campo-filtro"><label>Número</label><input type="text" name="numero" value="<?= Auxiliares::escapar($filtros['numero']??'') ?>" placeholder="SOL-..."></div>
+    <div class="campo-filtro"><label>Número</label><input type="text" name="numero" value="<?= Auxiliares::escapar($filtros['numero']??'') ?>"></div>
+    <div class="campo-filtro">
+      <label style="display:flex;gap:8px;align-items:center;justify-content:space-between;">
+        <span>Cód. Departamento <?php if(!in_array($usuario['perfil'],['administrador','comprador'])): ?><span style="font-size:0.75rem;color:#888;">(fixo)</span><?php endif; ?></span>
+        <?php if(in_array($usuario['perfil'],['administrador','comprador'])): ?>
+        <button type="button" class="btn btn-secundario" style="padding:4px 6px;margin:0;" onclick="Scopi.iconeBusca('departamentos','filtroSolDepCodigo','filtroSolDepNome')"><img src="<?= BASE_URL ?>/public/assets/icons/iconeBusca.svg" style="width:13px;margin:0;" alt="Buscar"></button>
+        <?php endif; ?>
+      </label>
+      <div style="display:flex;gap:8px;align-items:center;max-width:260px;">
+        <input type="text" id="filtroSolDepCodigo" name="departamento_codigo" value="<?= Auxiliares::escapar($filtros['departamento_codigo']??'') ?>" class="campo-input" style="width:90px;text-transform:uppercase;" onblur="buscarDepFiltroSol(this.value)" <?= !in_array($usuario['perfil'],['administrador','comprador']) ? 'readonly' : '' ?>>
+        <span id="filtroSolDepNome" style="font-size:0.8rem;color:var(--texto-secundario);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><?= empty($filtros['departamento_codigo']) ? 'Digite...' : 'Buscando...' ?></span>
+      </div>
+    </div>
+    <div class="campo-filtro">
+      <label style="display:flex;gap:8px;align-items:center;justify-content:space-between;">
+        <span>Matrícula Solicitante</span>
+        <button type="button" class="btn btn-secundario" style="padding:4px 6px;margin:0;" onclick="Scopi.iconeBusca('usuarios','filtroSolMatricula','filtroSolNomeSolic')"><img src="<?= BASE_URL ?>/public/assets/icons/iconeBusca.svg" style="width:13px;margin:0;" alt="Buscar"></button>
+      </label>
+      <div style="display:flex;gap:8px;align-items:center;max-width:260px;">
+        <input type="text" id="filtroSolMatricula" name="matricula_solicitante" value="<?= Auxiliares::escapar($filtros['matricula_solicitante']??'') ?>" class="campo-input" style="width:90px;" onblur="buscarMatriculaFiltroSol(this.value)">
+        <span id="filtroSolNomeSolic" style="font-size:0.8rem;color:var(--texto-secundario);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Digite...</span>
+      </div>
+    </div>
+    <div class="campo-filtro"><label>Data Registro (De)</label><input type="date" name="data_inicial" value="<?= Auxiliares::escapar($filtros['data_inicial']??'') ?>"></div>
+    <div class="campo-filtro"><label>Data Registro (Até)</label><input type="date" name="data_final" value="<?= Auxiliares::escapar($filtros['data_final']??'') ?>"></div>
     <div class="campo-filtro"><label>Status</label>
       <select name="status">
         <option value="">Todos</option>
-        <option value="em_aberto"  <?= ($filtros['status']??'')==='em_aberto'?'selected':'' ?>>Em Aberto</option>
-        <option value="autorizada" <?= ($filtros['status']??'')==='autorizada'?'selected':'' ?>>Autorizada</option>
+        <option value="aberto"  <?= ($filtros['status']??'')==='aberto'?'selected':'' ?>>Aberto</option>
+        <option value="autorizada" <?= ($filtros['status']??'')==='autorizado'?'selected':'' ?>>Autorizada</option>
         <option value="em_cotacao" <?= ($filtros['status']??'')==='em_cotacao'?'selected':'' ?>>Em Cotação</option>
-        <option value="recusada"   <?= ($filtros['status']??'')==='recusada'?'selected':'' ?>>Recusada</option>
-        <option value="concluida"  <?= ($filtros['status']??'')==='concluida'?'selected':'' ?>>Concluída</option>
-        <option value="cancelada"  <?= ($filtros['status']??'')==='cancelada'?'selected':'' ?>>Cancelada</option>
+        <option value="concluida"  <?= ($filtros['status']??'')==='concluido'?'selected':'' ?>>Concluída</option>
+        <option value="cancelada"  <?= ($filtros['status']??'')==='cancelado'?'selected':'' ?>>Cancelada</option>
       </select>
     </div>
-    <div class="campo-filtro"><label>A partir de</label><input type="date" name="periodo" value="<?= Auxiliares::escapar($filtros['periodo']??'') ?>"></div>
-    <div class="campo-filtro" style="flex:0;align-self:flex-end;"><button type="submit" class="btn btn-filtrar"><img src="<?= BASE_URL ?>/public/assets/icons/iconeBusca.svg" alt=""> Buscar</button></div>
+    <div class="campo-filtro" style="flex:0;align-self:flex-end;"><button type="submit" class="btn btn-filtrar"><img src="<?= BASE_URL ?>/public/assets/icons/iconeBusca.svg" alt=""> Filtrar</button></div>
   </div></form>
 </div>
 <div class="barra-acoes">
@@ -38,11 +60,9 @@
         <td><?= Auxiliares::escapar($s['nome_departamento']??'—') ?></td>
         <td><?= Auxiliares::escapar($s['nome_solicitante']??'—') ?></td>
         <td><?= date('d/m/Y', strtotime($s['criado_em'])) ?></td>
-        <td><span class="badge badge-<?= str_replace('_','-',$s['status']) ?>"><?= str_replace('_',' ', ucfirst($s['status'])) ?></span></td>
+        <td><span class="badge badge-<?= str_replace('_','-',$s['status']) ?>"><?= Auxiliares::formatarStatus($s['status']) ?></span></td>
         <td class="coluna-acoes">
-          <?php if($s['status'] === 'em_aberto' || $s['status'] === 'recusada'): ?>
-            <button class="btn-icone btn-editar-linha" onclick="Scopi.abrirRegistro('modalSolicitacao','formSolicitacao','/solicitacoes/dados',<?= $s['id'] ?>,'editar')" title="Editar"><img src="<?= BASE_URL ?>/public/assets/icons/iconeEditar.svg" alt=""></button>
-          <?php endif; ?>
+          <button class="btn-icone btn-editar-linha" onclick="Scopi.abrirRegistro('modalSolicitacao','formSolicitacao','/solicitacoes/dados',<?= $s['id'] ?>,'editar')" title="Editar"><img src="<?= BASE_URL ?>/public/assets/icons/iconeEditar.svg" alt=""></button>
         </td>
       </tr>
       <?php endforeach; endif; ?>
@@ -51,7 +71,13 @@
 </div>
 <div class="overlay-modal" id="modalSolicitacao">
   <div class="modal modal-largo">
-    <div class="modal-cabecalho"><div class="modal-titulo"><img src="<?= BASE_URL ?>/public/assets/icons/iconeSolicitacao.svg" alt=""><span>Solicitação</span></div><button class="btn-fechar-modal" onclick="Scopi.fecharModal('modalSolicitacao')"><img src="<?= BASE_URL ?>/public/assets/icons/iconeFechar.svg" alt=""></button></div>
+    <div class="modal-cabecalho">
+      <div class="modal-titulo"><img src="<?= BASE_URL ?>/public/assets/icons/iconeSolicitacao.svg" alt=""><span>Solicitação</span></div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-secundario" id="btnHistoricoSol" style="display:none;padding:4px 8px;font-size:0.8rem;" onclick="Scopi.abrirHistorico('solicitacoes',_idSol,'Solicitação')">Histórico</button>
+        <button class="btn-fechar-modal" onclick="Scopi.fecharModal('modalSolicitacao')"><img src="<?= BASE_URL ?>/public/assets/icons/iconeFechar.svg" alt=""></button>
+      </div>
+    </div>
     <div class="modal-abas"><button class="aba-btn ativa" data-aba="visualizar" onclick="Scopi.ativarAba('modalSolicitacao','visualizar')">Visualizar</button><button class="aba-btn" data-aba="editar" onclick="Scopi.ativarAba('modalSolicitacao','editar')">Nova / Editar</button></div>
     <div class="modal-corpo">
       <div class="conteudo-aba ativo" data-aba="visualizar">
@@ -60,6 +86,7 @@
           <div class="campo-visualizar"><span class="rotulo">Status</span><span class="valor"><span class="badge" data-badge="status">—</span></span></div>
           <div class="campo-visualizar"><span class="rotulo">Departamento</span><span class="valor" data-campo="nome_departamento">—</span></div>
           <div class="campo-visualizar"><span class="rotulo">Solicitante</span><span class="valor" data-campo="nome_solicitante">—</span></div>
+          <div class="campo-visualizar"><span class="rotulo">Autorizador</span><span class="valor" data-campo="nome_autorizador">—</span></div>
           <div class="campo-visualizar campo-completo"><span class="rotulo">Justificativa</span><span class="valor" data-campo="justificativa">—</span></div>
         </div>
         
@@ -69,6 +96,7 @@
             <table class="tabela" id="tabItensVisualizar">
               <thead>
                 <tr>
+                  <th style="width: 50px; text-align: center; padding: 8px 12px;">Nº Item</th>
                   <th style="padding: 8px 12px;">Produto</th>
                   <th style="width: 120px; text-align: right; padding: 8px 12px;">Quantidade</th>
                 </tr>
@@ -84,19 +112,55 @@
       <div class="conteudo-aba" data-aba="editar">
         <form id="formSolicitacao" onsubmit="event.preventDefault();Scopi.enviarFormulario('formSolicitacao','modalSolicitacao','/solicitacoes/salvar')">
           <input type="hidden" name="id" value="0">
+
+          <!-- CAMPOS READ-ONLY -->
+          <div class="grade-form" style="grid-template-columns: 1fr 1fr; margin-bottom: 15px;">
+            <div class="campo-form">
+              <label>Número</label>
+              <input type="text" readonly class="campo-input" style="cursor: not-allowed;" value="—" data-campo="numero">
+            </div>
+            <div class="campo-form">
+              <label>Status</label>
+              <input type="text" readonly class="campo-input" style="cursor: not-allowed;" value="Aberto" data-campo="situacao_texto">
+            </div>
+          </div>
+
+          <div class="grade-form" style="grid-template-columns: 1fr 1fr; margin-bottom: 15px;">
+            <div class="campo-form">
+              <label>Departamento Solicitante</label>
+              <input type="text" readonly class="campo-input" style="cursor: not-allowed;" value="<?= Auxiliares::escapar($usuario['departamento_nome'] ?? '') ?>" data-campo="nome_departamento">
+            </div>
+            <div class="campo-form">
+              <label>Usuário Solicitante</label>
+              <input type="text" readonly class="campo-input" style="cursor: not-allowed;" value="—" data-campo="nome_solicitante">
+            </div>
+          </div>
+
+          <div class="grade-form" style="grid-template-columns: 1fr 1fr; margin-bottom: 15px;">
+            <div class="campo-form">
+              <label>Data de Abertura</label>
+              <input type="text" readonly class="campo-input" style="cursor: not-allowed;" value="—" data-campo="data_abertura_fmt">
+            </div>
+            <div class="campo-form">
+              <label>Usuário Autorizador</label>
+              <input type="text" readonly class="campo-input" style="cursor: not-allowed;" value="—" data-campo="nome_autorizador">
+            </div>
+          </div>
+
           <div class="grade-form" style="grid-template-columns:1fr;">
-            <div class="campo-form"><label>Justificativa *</label><textarea name="justificativa" required rows="2" placeholder="Descreva a necessidade..."></textarea></div>
+            <div class="campo-form"><label>Justificativa *</label><textarea name="justificativa" required rows="2" ></textarea></div>
             
             <div id="blocoItensEdicao" class="campo-form" style="margin-top: 10px; border-top: 1px solid var(--borda); padding-top: 15px; display: none;">
               <label style="margin-bottom: 8px;">Adicionar Produtos</label>
               <div style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center;">
                 <div style="display: flex; flex: 1; gap: 8px; align-items: center;">
-                    <input type="text" id="solicProdutoCodigo" class="campo-input" style="width: 120px; padding: 8px 10px; border: 1px solid var(--borda); border-radius: 6px; font-size: 0.78rem;" placeholder="Cód. Produto" onblur="buscarProdutoPorCodigo(this.value)">
+                    <input type="text" id="solicProdutoCodigo" class="campo-input" style="width: 120px; padding: 8px 10px; border: 1px solid var(--borda); border-radius: 6px; font-size: 0.78rem;" onblur="buscarProdutoPorCodigo(this.value)">
+                    <button type="button" class="btn btn-secundario" style="padding:6px 8px;flex-shrink:0;" title="Buscar produto" onclick="Scopi.iconeBusca('produtos','solicProdutoCodigo','solicProdutoNome')"><img src="<?= BASE_URL ?>/public/assets/icons/iconeBusca.svg" style="width:14px;margin:0;" alt="Buscar"></button>
                     <span id="solicProdutoNome" style="font-size: 0.85rem; color: var(--texto-secundario); font-style: italic;">Digite o código...</span>
                     <input type="hidden" id="solicProdutoId" value="">
                     <input type="hidden" id="solicProdutoNomeHidden" value="">
                 </div>
-                <input type="number" id="solicQtdInput" class="campo-input" style="width: 100px; padding: 8px 10px; border: 1px solid var(--borda); border-radius: 6px; font-size: 0.78rem;" min="0.01" step="any" placeholder="Qtd.">
+                <input type="number" id="solicQtdInput" class="campo-input" style="width: 100px; padding: 8px 10px; border: 1px solid var(--borda); border-radius: 6px; font-size: 0.78rem;" min="0.01" step="any" >
                 <button type="button" class="btn btn-primario" onclick="adicionarItemTabela()" style="height: 34px;">Adicionar</button>
               </div>
               
@@ -105,6 +169,7 @@
                 <table class="tabela" id="tabItensEditar">
                   <thead>
                     <tr>
+                      <th style="width: 50px; text-align: center; padding: 8px 12px;">Nº Item</th>
                       <th style="padding: 8px 12px;">Produto</th>
                       <th style="width: 120px; text-align: right; padding: 8px 12px;">Quantidade</th>
                       <th style="width: 50px; padding: 8px 12px;"></th>
@@ -123,9 +188,7 @@
     </div>
     <div class="modal-rodape">
       <button class="btn btn-perigo" id="btnCancelarSol" style="margin-right:auto; display:none;" onclick="Scopi.confirmarAcao('Cancelar esta solicitação?','/solicitacoes/cancelar',{id:_idSol})">Cancelar Solicitação</button>
-      <button class="btn" id="btnAutorizarSol" style="background-color: var(--sucesso); color: var(--branco); display:none;" onclick="Scopi.confirmarAcao('Autorizar esta solicitação?','/solicitacoes/autorizar',{id:_idSol})">Autorizar</button>
-      <button class="btn" id="btnRecusarSol" style="background-color: var(--alerta); color: var(--branco); display:none;" onclick="Scopi.confirmarAcao('Recusar esta solicitação?','/solicitacoes/recusar',{id:_idSol})">Recusar</button>
-      <button class="btn" id="btnDesautorizarSol" style="background-color: #E65100; color: var(--branco); display:none;" onclick="Scopi.confirmarAcao('Retirar autorização desta solicitação?','/solicitacoes/desautorizar',{id:_idSol})">Retirar Autorização</button>
+      <button class="btn btn-perigo" id="btnRetirarAutSol" style="margin-right:auto; display:none;" onclick="Scopi.confirmarAcao('Retirar autorização desta solicitação?','/solicitacoes/desautorizar',{id:_idSol})">Retirar Autorização</button>
       <button class="btn btn-secundario" onclick="Scopi.fecharModal('modalSolicitacao')">Fechar</button>
       <button class="btn btn-primario btn-salvar-capa" onclick="salvarCapaSolicitacao()" style="display:none;"><img src="<?= BASE_URL ?>/public/assets/icons/iconeInserir.svg" alt=""> Confirmar Capa</button>
       <button class="btn btn-primario btn-salvar" onclick="Scopi.enviarFormulario('formSolicitacao','modalSolicitacao','/solicitacoes/salvar')"><img src="<?= BASE_URL ?>/public/assets/icons/iconeInserir.svg" alt=""> Salvar Itens</button>
@@ -134,8 +197,47 @@
 </div>
 <script>
 const USER_PERFIL = "<?= $usuario['perfil'] ?>";
+const USER_NOME = "<?= Auxiliares::escapar($usuario['nome']) ?>";
+const USER_ID = <?= (int)$usuario['id'] ?>;
+const USER_DEPTO_ID = <?= (int)($usuario['departamento_id'] ?? 0) ?>;
+const USER_DEPTO_NOME = "<?= Auxiliares::escapar($usuario['departamento_nome'] ?? '') ?>";
+
+async function buscarDepFiltroSol(codigo) {
+    codigo = (codigo||'').trim();
+    const span = document.getElementById('filtroSolDepNome');
+    if (!span) return;
+    if (!codigo) { span.textContent = 'Digite...'; span.style.color = 'var(--texto-secundario)'; return; }
+    span.textContent = 'Buscando...'; span.style.color = 'var(--texto-secundario)';
+    try {
+        const resp = await fetch(Scopi.url(`/departamentos/consultar-codigo?codigo=${encodeURIComponent(codigo)}`), {credentials:'include'});
+        const data = await resp.json();
+        if (data.sucesso && data.dados) { span.textContent = data.dados.nome; span.style.color = 'var(--sucesso)'; }
+        else { span.textContent = 'Não encontrado'; span.style.color = 'var(--alerta)'; }
+    } catch(e) { span.textContent = 'Erro'; span.style.color = 'var(--alerta)'; }
+}
+
+async function buscarMatriculaFiltroSol(matricula) {
+    matricula = (matricula||'').trim();
+    const span = document.getElementById('filtroSolNomeSolic');
+    if (!span) return;
+    if (!matricula) { span.textContent = 'Digite...'; span.style.color = 'var(--texto-secundario)'; return; }
+    span.textContent = 'Buscando...'; span.style.color = 'var(--texto-secundario)';
+    try {
+        const resp = await fetch(Scopi.url(`/usuarios/consultar-matricula?matricula=${encodeURIComponent(matricula)}`), {credentials:'include'});
+        const data = await resp.json();
+        if (data.sucesso && data.dados) { span.textContent = data.dados.nome; span.style.color = 'var(--sucesso)'; }
+        else { span.textContent = 'Não encontrado'; span.style.color = 'var(--alerta)'; }
+    } catch(e) { span.textContent = 'Erro'; span.style.color = 'var(--alerta)'; }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const codDep = document.getElementById('filtroSolDepCodigo')?.value?.trim();
+    if (codDep) buscarDepFiltroSol(codDep);
+    const mat = document.getElementById('filtroSolMatricula')?.value?.trim();
+    if (mat) buscarMatriculaFiltroSol(mat);
+});
 let _idSol = 0;
-let _statusSol = 'em_aberto';
+let _statusSol = 'aberto';
 let _itensSolicitacao = [];
 
 const _origAbrirCadastro = Scopi.abrirCadastro;
@@ -143,14 +245,33 @@ Scopi.abrirCadastro = function(idModal, idForm) {
     _origAbrirCadastro(idModal, idForm);
     if (idModal === 'modalSolicitacao') {
         _idSol = 0;
-        _statusSol = 'em_aberto';
+        _statusSol = 'aberto';
         _itensSolicitacao = [];
+
+        // Preencher campos read-only para novo cadastro com dados do usuário logado
+        document.querySelectorAll('#formSolicitacao [data-campo]').forEach(el => {
+            if (el.tagName === 'INPUT') {
+                const campo = el.getAttribute('data-campo');
+                if (campo === 'numero') el.value = '';
+                else if (campo === 'status_texto') el.value = 'Aberto';
+                else if (campo === 'nome_departamento') {
+                    el.value = USER_DEPTO_NOME;
+                }
+                else if (campo === 'nome_solicitante') el.value = USER_NOME || '';
+                else if (campo === 'data_abertura_fmt') el.value = new Date().toLocaleDateString('pt-BR');
+                else if (campo === 'nome_autorizador') el.value = '';
+            }
+        });
+
         const tabEditarBtn = document.querySelector('#modalSolicitacao .aba-btn[data-aba="editar"]');
         if (tabEditarBtn) tabEditarBtn.style.display = 'inline-block';
-        
+
         const blocoItens = document.getElementById('blocoItensEdicao');
         if (blocoItens) blocoItens.style.display = 'none';
-        
+
+        // Ativar a aba "editar" por padrão
+        Scopi.ativarAba('modalSolicitacao', 'editar');
+
         renderItensEditar();
         atualizarBotoesRodape('editar');
     }
@@ -162,15 +283,29 @@ Scopi.abrirRegistro = async function(idModal, idForm, urlDados, id, abaInicial='
         _idSol = id;
         await _origAbrirRegistro(idModal, idForm, urlDados, id, abaInicial);
         try {
-            const resp = await fetch(`${Scopi.url(urlDados)}?id=${id}`, {headers:{'X-Requested-With':'XMLHttpRequest'}});
+            const resp = await fetch(`${Scopi.url(urlDados)}?id=${id}`, {credentials:'include',headers:{'X-Requested-With':'XMLHttpRequest'}});
             const json = await resp.json();
             if (json.sucesso) {
                 _itensSolicitacao = json.dados.itens || [];
-                _statusSol = json.dados.status || 'em_aberto';
+                _statusSol = json.dados.status || 'aberto';
+
+                // Preencher campos read-only na aba de edição
+                const dados = json.dados;
+                document.querySelectorAll('#formSolicitacao [data-campo]').forEach(el => {
+                    if (el.tagName === 'INPUT') {
+                        const campo = el.getAttribute('data-campo');
+                        if (campo === 'numero') el.value = dados.numero || '—';
+                        else if (campo === 'status_texto') el.value = dados.status ? Scopi.formatarStatus(dados.status) : '—';
+                        else if (campo === 'nome_departamento') el.value = dados.nome_departamento || '—';
+                        else if (campo === 'nome_solicitante') el.value = dados.nome_solicitante || '—';
+                        else if (campo === 'data_abertura_fmt') el.value = dados.criado_em ? new Date(dados.criado_em).toLocaleDateString('pt-BR') : '—';
+                        else if (campo === 'nome_autorizador') el.value = dados.nome_autorizador || '—';
+                    }
+                });
                 
                 const tabEditarBtn = document.querySelector('#modalSolicitacao .aba-btn[data-aba="editar"]');
                 if (tabEditarBtn) {
-                    if (_statusSol !== 'em_aberto' && _statusSol !== 'recusada') {
+                    if (_statusSol !== 'aberto' && _statusSol !== 'recusada') {
                         tabEditarBtn.style.display = 'none';
                     } else {
                         tabEditarBtn.style.display = 'inline-block';
@@ -202,36 +337,31 @@ Scopi.ativarAba = function(modalId, aba) {
 
 function atualizarBotoesRodape(aba) {
     const btnCancelar = document.getElementById('btnCancelarSol');
-    const btnAutorizar = document.getElementById('btnAutorizarSol');
-    const btnRecusar = document.getElementById('btnRecusarSol');
-    const btnDesautorizar = document.getElementById('btnDesautorizarSol');
+    const btnRetirarAut = document.getElementById('btnRetirarAutSol');
     const btnSalvar = document.querySelector('#modalSolicitacao .btn-salvar');
     const btnSalvarCapa = document.querySelector('#modalSolicitacao .btn-salvar-capa');
 
+    const btnHistorico = document.getElementById('btnHistoricoSol');
     if (btnCancelar) btnCancelar.style.display = 'none';
-    if (btnAutorizar) btnAutorizar.style.display = 'none';
-    if (btnRecusar) btnRecusar.style.display = 'none';
-    if (btnDesautorizar) btnDesautorizar.style.display = 'none';
+    if (btnRetirarAut) btnRetirarAut.style.display = 'none';
     if (btnSalvar) btnSalvar.style.display = 'none';
     if (btnSalvarCapa) btnSalvarCapa.style.display = 'none';
+    if (btnHistorico) btnHistorico.style.display = (_idSol > 0) ? 'inline-flex' : 'none';
 
     if (aba === 'visualizar') {
-        if (btnCancelar && (_statusSol === 'em_aberto' || _statusSol === 'autorizada')) {
-            btnCancelar.style.display = 'inline-flex';
-        }
-        if (btnAutorizar && btnRecusar && _statusSol === 'em_aberto' && (USER_PERFIL === 'gerente' || USER_PERFIL === 'administrador')) {
-            btnAutorizar.style.display = 'inline-flex';
-            btnRecusar.style.display = 'inline-flex';
-        }
-        if (btnDesautorizar && _statusSol === 'autorizada' && (USER_PERFIL === 'gerente' || USER_PERFIL === 'administrador')) {
-            btnDesautorizar.style.display = 'inline-flex';
-        }
+        // Apenas botões padrão (Fechar e Histórico)
     } else if (aba === 'editar') {
         if (_idSol === 0) {
             if (btnSalvarCapa) btnSalvarCapa.style.display = 'inline-flex';
         } else {
-            if (btnSalvar && (_statusSol === 'em_aberto' || _statusSol === 'recusada')) {
+            if (btnSalvar && (_statusSol === 'aberto')) {
                 btnSalvar.style.display = 'inline-flex';
+            }
+            if (btnCancelar && (_statusSol === 'aberto' || _statusSol === 'autorizado')) {
+                btnCancelar.style.display = 'inline-flex';
+            }
+            if (btnRetirarAut && (_statusSol === 'autorizado')) {
+                btnRetirarAut.style.display = 'inline-flex';
             }
         }
     }
@@ -247,7 +377,7 @@ async function salvarCapaSolicitacao() {
     if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
     
     try {
-        const resp = await fetch(Scopi.url('/solicitacoes/salvar'), {
+        const resp = await fetch(Scopi.url('/solicitacoes/salvar'), {credentials:'include',
             method: 'POST',
             body: new FormData(form),
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
@@ -291,7 +421,7 @@ async function buscarProdutoPorCodigo(codigo) {
     spanNome.style.color = 'var(--texto-secundario)';
     
     try {
-        const resp = await fetch(`${SCOPI_BASE}/produtos/consultar-codigo?codigo=${encodeURIComponent(codigo)}`);
+        const resp = await fetch(`${SCOPI_BASE}/produtos/consultar-codigo?codigo=${encodeURIComponent(codigo)}`, {credentials:'include'});
         const data = await resp.json();
         if (data.sucesso && data.dados) {
             spanNome.textContent = `${data.dados.nome} (${data.dados.categoria_nome || 'Sem categoria'})`;
@@ -346,7 +476,7 @@ function adicionarItemTabela() {
         codigo_produto: codigo
     });
     
-    sel.value = '';
+    inputCodigo.value = '';
     qtdInput.value = '';
     
     renderItensEditar();
@@ -363,11 +493,12 @@ function renderItensEditar() {
     tbody.innerHTML = '';
     
     if (_itensSolicitacao.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#888;padding:12px;">Nenhum produto adicionado.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#888;padding:12px;">Nenhum produto adicionado.</td></tr>';
     } else {
         _itensSolicitacao.forEach((item, idx) => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
+                <td style="text-align: center; padding: 8px 12px;">${item.numero_item || '-'}</td>
                 <td style="padding: 8px 12px;">${item.nome_produto} (${item.codigo_produto || ''})</td>
                 <td style="text-align:right; padding: 8px 12px;">${parseFloat(item.quantidade).toFixed(2)}</td>
                 <td style="text-align:center; padding: 8px 12px;">
@@ -392,11 +523,12 @@ function renderItensVisualizar() {
     tbody.innerHTML = '';
     
     if (_itensSolicitacao.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;color:#888;padding:12px;">Nenhum produto adicionado.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#888;padding:12px;">Nenhum produto adicionado.</td></tr>';
     } else {
         _itensSolicitacao.forEach(item => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
+                <td style="text-align: center; padding: 8px 12px;">${item.numero_item || '-'}</td>
                 <td style="padding: 8px 12px;">${item.nome_produto} (${item.codigo_produto || ''})</td>
                 <td style="text-align:right; padding: 8px 12px;">${parseFloat(item.quantidade).toFixed(2)}</td>
             `;

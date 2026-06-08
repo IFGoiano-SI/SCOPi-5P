@@ -11,8 +11,37 @@ class SolicitacaoControlador extends BaseController {
         Auxiliares::exigirAutenticacao(); $usuario=Auxiliares::usuarioLogado(); $filtros=$_GET;
         $depId=in_array($usuario['perfil'],['administrador','comprador'])?null:$usuario['departamento_id'];
         $solicitacoes=$this->m->listarComFiltros($filtros,$depId);
+
+        if (isset($_GET['busca_modal'])) {
+            $this->json(true, '', $solicitacoes);
+            return;
+        }
+
         $produtosAtivos = (new \Models\ProdutoModelo())->listarAtivos();
-        $this->renderizar('solicitacoes/solicitacoes',compact('solicitacoes','filtros','produtosAtivos'));
+
+        // Adicionar nome do departamento do usuário
+        $departamentosMap = [
+            1 => 'Administração',
+            2 => 'Compras',
+            3 => 'Financeiro',
+            4 => 'Contabilidade',
+            5 => 'Operações'
+        ];
+
+        $usuario['departamento_nome'] = '';
+        if (!empty($usuario['departamento_id'])) {
+            $deptId = (int)$usuario['departamento_id'];
+            // Primeiro tenta buscar do banco
+            $bd = \Config\BancoDados::obterInstancia()->obterConexao();
+            $q = $bd->prepare("SELECT nome FROM departamentos WHERE id = ?");
+            $q->execute([$deptId]);
+            $nome = $q->fetchColumn();
+
+            // Se não encontrou, usa o mapa como fallback
+            $usuario['departamento_nome'] = $nome ?: ($departamentosMap[$deptId] ?? '');
+        }
+
+        $this->renderizar('solicitacoes/solicitacoes',compact('solicitacoes','filtros','produtosAtivos','usuario'));
     }
     public function dados(): void { Auxiliares::exigirAutenticacao(); $r=$this->m->buscarComItens((int)($_GET['id']??0)); $r?$this->json(true,'',$r):$this->json(false,'Não encontrado.'); }
     public function salvar(): void {
@@ -52,13 +81,13 @@ class SolicitacaoControlador extends BaseController {
         $id = (int)($_POST['id']??0);
         $ok = $this->m->autorizar($id, $usuario['id']);
         if ($ok) {
-            // RF09: Notificar solicitante que a solicitação foi autorizada
+            // RF09: Notificar solicitante que a solicitação foi autorizado
             $sol = $this->m->buscarComItens($id);
             if ($sol) {
                 \Config\Notificador::notificarUsuario(
                     (int)$sol['usuario_id'],
                     "Solicitação Autorizada",
-                    "Sua solicitação {$sol['numero']} foi autorizada por {$usuario['nome']}.",
+                    "Sua solicitação {$sol['numero']} foi autorizado por {$usuario['nome']}.",
                     'solicitacao'
                 );
             }
@@ -79,29 +108,11 @@ class SolicitacaoControlador extends BaseController {
                 $sucesso++;
                 $sol = $this->m->buscarComItens($idInt);
                 if ($sol) {
-                    \Config\Notificador::notificarUsuario((int)$sol['usuario_id'], "Solicitação Autorizada", "Sua solicitação {$sol['numero']} foi autorizada por {$usuario['nome']}.", 'solicitacao');
+                    \Config\Notificador::notificarUsuario((int)$sol['usuario_id'], "Solicitação Autorizada", "Sua solicitação {$sol['numero']} foi autorizado por {$usuario['nome']}.", 'solicitacao');
                 }
             }
         }
         $this->json(true, "$sucesso itens autorizados com sucesso.");
-    }
-    public function recusar(): void {
-        Auxiliares::exigirPerfil('gerente','administrador');
-        $usuario = Auxiliares::usuarioLogado();
-        $id = (int)($_POST['id']??0);
-        $ok = $this->m->recusar($id, $usuario['id']);
-        if ($ok) {
-            $sol = $this->m->buscarComItens($id);
-            if ($sol) {
-                \Config\Notificador::notificarUsuario(
-                    (int)$sol['usuario_id'],
-                    "Solicitação Recusada",
-                    "Sua solicitação {$sol['numero']} foi recusada por {$usuario['nome']}.",
-                    'solicitacao'
-                );
-            }
-        }
-        $this->json($ok, $ok ? 'Recusada.' : 'Erro ao recusar.');
     }
     public function desautorizar(): void {
         Auxiliares::exigirPerfil('gerente','administrador');
@@ -109,6 +120,15 @@ class SolicitacaoControlador extends BaseController {
         $ok = $this->m->desautorizar((int)($_POST['id']??0), $usuario['id']);
         $this->json($ok, $ok ? 'Autorização retirada.' : 'Erro ao retirar autorização (pode haver cotação ativa).');
     }
+
+    public function excluir_item(): void {
+        Auxiliares::exigirAutenticacao();
+        $usuario = Auxiliares::usuarioLogado();
+        $id = (int)($_POST['id']??0);
+        $ok = $this->m->excluirItem($id, $usuario['id']);
+        $this->json($ok, $ok ? 'Item removido com sucesso.' : 'Falha ao remover item. A solicitação pode não estar em aberto.');
+    }
+
     public function cancelar(): void {
         Auxiliares::exigirAutenticacao();
         $usuario = Auxiliares::usuarioLogado();
@@ -121,18 +141,18 @@ class SolicitacaoControlador extends BaseController {
             return;
         }
 
-        // RF09: Solicitações em aberto podem ser canceladas por usuários do mesmo departamento
-        if ($sol['status'] === 'em_aberto') {
+        // RF09: Solicitações em aberto podem ser cancelados por usuários do mesmo departamento
+        if ($sol['status'] === 'aberto') {
             if ((int)$sol['departamento_id'] !== (int)$usuario['departamento_id']
                 && !in_array($usuario['perfil'], ['administrador'])) {
                 $this->json(false, 'Você só pode cancelar solicitações do seu departamento.');
                 return;
             }
         }
-        // RF09: Solicitações autorizadas só podem ser canceladas pelo gerente responsável
-        elseif ($sol['status'] === 'autorizada') {
+        // RF09: Solicitações autorizados só podem ser cancelados pelo gerente responsável
+        elseif ($sol['status'] === 'autorizado') {
             if (!in_array($usuario['perfil'], ['gerente', 'administrador'])) {
-                $this->json(false, 'Apenas o gerente ou administrador pode cancelar uma solicitação autorizada.');
+                $this->json(false, 'Apenas o gerente ou administrador pode cancelar uma solicitação autorizado.');
                 return;
             }
         } else {
@@ -152,7 +172,7 @@ class SolicitacaoControlador extends BaseController {
         Auxiliares::exigirPerfil('gerente', 'administrador');
         $usuario = Auxiliares::usuarioLogado();
         $filtros = $_GET;
-        $filtros['status'] = 'em_aberto'; // Força listar apenas em aberto
+        $filtros['status'] = 'aberto'; // Força listar apenas em aberto
         $depId = in_array($usuario['perfil'], ['administrador']) ? null : $usuario['departamento_id'];
         if ($usuario['perfil'] === 'gerente') {
             $filtros['departamento_id'] = $usuario['departamento_id'];
