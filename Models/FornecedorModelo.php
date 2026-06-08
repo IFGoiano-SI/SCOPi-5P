@@ -189,7 +189,10 @@ class FornecedorModelo extends ModeloBase {
     }
 
     public function cadastrar(array $dados, ?int $responsavelId = null): int {
-        $codigo = 'FOR-' . strtoupper(substr(md5(uniqid()), 0, 6));
+        $qMax = $this->bd->query("SELECT MAX(CAST(SUBSTRING(codigo, 5) AS UNSIGNED)) FROM fornecedores");
+        $maxVal = (int) $qMax->fetchColumn();
+        $dados['codigo'] = 'forn' . sprintf('%06d', $maxVal + 1);
+
         $this->bd->prepare("
             INSERT INTO fornecedores (razao_social, nome_fantasia, cnpj, inscricao_estadual, logradouro, numero, complemento, bairro, cep, cidade_id, email, contato, responsavel, codigo, tipo, matriz_id, situacao, criado_em)
             VALUES (:rs,:nf,:cnpj,:ie,:log,:num,:compl,:bairro,:cep,:cidade_id,:email,:contato,:resp,:cod,:tipo,:matriz_id,'ativo',NOW())
@@ -207,7 +210,7 @@ class FornecedorModelo extends ModeloBase {
             ':email' => $dados['email'] ?? null,
             ':contato' => $dados['contato'] ?? null,
             ':resp' => $dados['responsavel'] ?? null,
-            ':cod' => $codigo,
+            ':cod' => $dados['codigo'],
             ':tipo' => $dados['tipo'] ?? 'matriz',
             ':matriz_id' => $dados['matriz_id'] ?? null
         ]);
@@ -285,6 +288,22 @@ class FornecedorModelo extends ModeloBase {
             ORDER BY c.nome
         ");
         $q->execute([':fid' => $fornecedorId]);
+        return $q->fetchAll();
+    }
+
+    /**
+     * RF10: Listar fornecedores ativos com seus IDs de categoria para sugestão automática
+     */
+    public function listarAtivoComCategorias(): array {
+        $q = $this->bd->query("
+            SELECT f.id, f.razao_social, f.nome_fantasia, f.cnpj, f.codigo,
+                   GROUP_CONCAT(fc.categoria_id ORDER BY fc.categoria_id) AS categorias_ids
+            FROM fornecedores f
+            LEFT JOIN fornecedor_categorias fc ON fc.fornecedor_id = f.id
+            WHERE f.situacao = 'ativo'
+            GROUP BY f.id
+            ORDER BY f.razao_social
+        ");
         return $q->fetchAll();
     }
 

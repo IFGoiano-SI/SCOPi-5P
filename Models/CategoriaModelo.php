@@ -23,17 +23,21 @@ class CategoriaModelo extends ModeloBase {
     }
 
     public function cadastrar(array $dados, ?int $responsavelId = null): int {
+        $qMax = $this->bd->query("SELECT MAX(CAST(SUBSTRING(codigo, 4) AS UNSIGNED)) FROM categorias WHERE codigo LIKE 'cat%'");
+        $maxVal = (int) $qMax->fetchColumn();
+        $dados['codigo'] = 'cat' . str_pad($maxVal + 1, 3, '0', STR_PAD_LEFT);
+
         // Gera um código temporário para não violar constraint UNIQUE
-        $tempCode = uniqid('cat_');
+        
         $q = $this->bd->prepare("INSERT INTO categorias (nome, codigo, situacao) VALUES (:nome, :codigo, 'ativo')");
-        $q->execute([':nome' => $dados['nome'], ':codigo' => $tempCode]);
+        $q->execute([':nome' => $dados['nome'], ':codigo' => $dados['codigo']]);
         $novoId = (int) $this->bd->lastInsertId();
         
         // Atualiza com o código definitivo baseado no ID
-        $codigoDefinitivo = 'cat' . str_pad($novoId, 6, '0', STR_PAD_LEFT);
-        $this->bd->prepare("UPDATE categorias SET codigo = :cod WHERE id = :id")->execute([':cod' => $codigoDefinitivo, ':id' => $novoId]);
         
-        $dados['codigo'] = $codigoDefinitivo; // Para o histórico
+        
+        
+         // Para o histórico
         
         if ($responsavelId) {
             $this->registrarHistorico($this->tabela, $novoId, [], $dados, $responsavelId);

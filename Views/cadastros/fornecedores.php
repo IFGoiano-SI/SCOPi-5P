@@ -4,13 +4,33 @@
 <div class="painel-filtros">
   <div class="filtros-cabecalho"><img src="<?= BASE_URL ?>/public/assets/icons/iconeFiltro.svg" alt=""><span>Filtros</span></div>
   <form method="GET" action="<?= BASE_URL ?>/fornecedores"><div class="filtros-campos">
-    <div class="campo-filtro"><label>Cód. Fornecedor</label><input type="text" name="codigo" value="<?= Auxiliares::escapar($filtros['codigo']??'') ?>" placeholder="FORN-..."></div>
-    <div class="campo-filtro"><label>Razão Social</label><input type="text" name="razao_social" value="<?= Auxiliares::escapar($filtros['razao_social']??'') ?>" placeholder="Buscar..."></div>
-    <div class="campo-filtro"><label>Nome Fantasia</label><input type="text" name="nome_fantasia" value="<?= Auxiliares::escapar($filtros['nome_fantasia']??'') ?>" placeholder="Buscar..."></div>
-    <div class="campo-filtro"><label>CNPJ</label><input type="text" name="cnpj" value="<?= Auxiliares::escapar($filtros['cnpj']??'') ?>" placeholder="00.000.000/0000-00"></div>
-    <div class="campo-filtro"><label>Cidade/UF/País</label><input type="text" name="cidade_uf" value="<?= Auxiliares::escapar($filtros['cidade_uf']??'') ?>" placeholder="Buscar..."></div>
+    <div class="campo-filtro"><label>Código</label><input type="text" name="codigo" value="<?= Auxiliares::escapar($filtros['codigo']??'') ?>"></div>
+    <div class="campo-filtro"><label>Razão Social</label><input type="text" name="razao_social" value="<?= Auxiliares::escapar($filtros['razao_social']??'') ?>"></div>
+    <div class="campo-filtro"><label>Nome Fantasia</label><input type="text" name="nome_fantasia" value="<?= Auxiliares::escapar($filtros['nome_fantasia']??'') ?>"></div>
+    <div class="campo-filtro">
+      <label style="display:flex;gap:8px;align-items:center;justify-content:space-between;">
+        <span>Cód. Categoria</span>
+        <button type="button" class="btn btn-secundario" style="padding:4px 6px;margin:0;" onclick="Scopi.iconeBusca('categorias','filtroCatFornCodigo','filtroCatFornNome')"><img src="<?= BASE_URL ?>/public/assets/icons/iconeBusca.svg" style="width:13px;margin:0;" alt="Buscar"></button>
+      </label>
+      <div style="display:flex;gap:8px;align-items:center;max-width:250px;">
+        <input type="text" id="filtroCatFornCodigo" name="categoria_codigo" value="<?= Auxiliares::escapar($filtros['categoria_codigo']??'') ?>" class="campo-input" style="width:100px;text-transform:uppercase;" onblur="buscarCategoriaFiltroForn(this.value)">
+        <span id="filtroCatFornNome" style="font-size:0.8rem;color:var(--texto-secundario);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><?= empty($filtros['categoria_codigo']) ? 'Digite...' : 'Buscando...' ?></span>
+      </div>
+    </div>
+    <div class="campo-filtro">
+      <label style="display:flex;gap:8px;align-items:center;justify-content:space-between;">
+        <span>Cód. Matriz</span>
+        <button type="button" class="btn btn-secundario" style="padding:4px 6px;margin:0;" onclick="Scopi.iconeBusca('fornecedores','filtroMatrizCodigo','filtroMatrizNome')"><img src="<?= BASE_URL ?>/public/assets/icons/iconeBusca.svg" style="width:13px;margin:0;" alt="Buscar"></button>
+      </label>
+      <div style="display:flex;gap:8px;align-items:center;max-width:250px;">
+        <input type="text" id="filtroMatrizCodigo" name="matriz_codigo" value="<?= Auxiliares::escapar($filtros['matriz_codigo']??'') ?>" class="campo-input" style="width:100px;text-transform:uppercase;" onblur="buscarMatrizFiltro(this.value)">
+        <span id="filtroMatrizNome" style="font-size:0.8rem;color:var(--texto-secundario);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><?= empty($filtros['matriz_codigo']) ? 'Digite...' : 'Buscando...' ?></span>
+      </div>
+    </div>
+    <div class="campo-filtro"><label>CNPJ</label><input type="text" name="cnpj" value="<?= Auxiliares::escapar($filtros['cnpj']??'') ?>"></div>
+    <div class="campo-filtro"><label>Cidade/UF/País</label><input type="text" name="cidade_uf" value="<?= Auxiliares::escapar($filtros['cidade_uf']??'') ?>"></div>
     <div class="campo-filtro"><label>Status</label><select name="situacao"><option value="">Todas</option><option value="ativo" <?= ($filtros['situacao']??'')==='ativo'?'selected':'' ?>>Ativo</option><option value="inativo" <?= ($filtros['situacao']??'')==='inativo'?'selected':'' ?>>Inativo</option></select></div>
-    <div class="campo-filtro" style="flex:0;align-self:flex-end;"><button type="submit" class="btn btn-filtrar"><img src="<?= BASE_URL ?>/public/assets/icons/iconeBusca.svg" alt=""> Buscar</button></div>
+    <div class="campo-filtro" style="flex:0;align-self:flex-end;"><button type="submit" class="btn btn-filtrar"><img src="<?= BASE_URL ?>/public/assets/icons/iconeBusca.svg" alt=""> Filtrar</button></div>
   </div></form>
 </div>
 <div class="barra-acoes">
@@ -45,7 +65,7 @@
     <div class="modal-cabecalho">
         <div class="modal-titulo"><img src="<?= BASE_URL ?>/public/assets/icons/iconeCadastro.svg" alt=""><span id="tituloModalFornecedor">Cadastro de Fornecedor</span></div>
         <div style="display: flex; gap: 8px;">
-            <button class="btn btn-secundario btn-historico" style="display:none; padding: 4px 8px; font-size: 0.8rem;" onclick="abrirHistorico('fornecedores', _idFornAtual)">Histórico</button>
+            <button class="btn btn-secundario btn-historico" style="display:none; padding: 4px 8px; font-size: 0.8rem;" onclick="Scopi.abrirHistorico('fornecedores', _idFornAtual, 'Fornecedor')">Histórico</button>
             <button class="btn-fechar-modal" onclick="Scopi.fecharModal('modalFornecedor')"><img src="<?= BASE_URL ?>/public/assets/icons/iconeFechar.svg" alt=""></button>
         </div>
     </div>
@@ -79,21 +99,27 @@
         <form id="formFornecedor" onsubmit="event.preventDefault();Scopi.enviarFormulario('formFornecedor','modalFornecedor','/fornecedores/salvar')">
           <input type="hidden" name="id" value="0">
           <div class="grade-form">
-            <div class="campo-form campo-leitura campo-completo" id="blocoLeituraForn" style="display:none; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px;">
-                <div><label>Código do Fornecedor</label><input type="text" data-campo="codigo" readonly class="campo-input" style="background-color: #f5f5f5;"></div>
-                <div><label>Status</label><input type="text" data-campo="situacao_texto" readonly class="campo-input" style="background-color: #f5f5f5;"></div>
+            <div class="grade-form" style="grid-template-columns: 1fr 1fr; margin-bottom: 10px; grid-column: 1 / -1;">
+                <div class="campo-form">
+                    <label>Código</label>
+                    <input type="text" data-campo="codigo" readonly class="campo-input" style="cursor: not-allowed;" placeholder="">
+                </div>
+                <div class="campo-form">
+                    <label>Status</label>
+                    <input type="text" data-campo="situacao_texto" readonly class="campo-input" style="cursor: not-allowed;" value="Ativo">
+                </div>
             </div>
             <div class="campo-form campo-completo"><label>Razão Social *</label><input type="text" name="razao_social" required></div>
             <div class="campo-form campo-completo"><label>Nome Fantasia</label><input type="text" name="nome_fantasia"></div>
             <div class="campo-form">
               <label>CNPJ *</label>
-              <input type="text" name="cnpj" required placeholder="Digite os 14 números" onblur="consultarCnpjReceita(this)">
+              <input type="text" name="cnpj" required onblur="consultarCnpjReceita(this)">
             </div>
             <div class="campo-form"><label>Inscrição Estadual</label><input type="text" name="inscricao_estadual"></div>
             
             <!-- Endereço -->
             <div class="campo-form"><label>CEP</label><input type="text" name="cep" placeholder="00000-000" onblur="consultarCEP(this)" oninput="mascararCEP(this)" maxlength="9"></div>
-            <div class="campo-form campo-completo"><label>Logradouro</label><input type="text" name="logradouro" placeholder="Ex: Av. Paulista"></div>
+            <div class="campo-form campo-completo"><label>Logradouro</label><input type="text" name="logradouro"></div>
             <div class="campo-form"><label>Número</label>
                 <div style="display: flex; gap: 8px; align-items: center;">
                     <input type="text" name="numero" id="forn_numero" style="flex: 1;">
@@ -107,7 +133,7 @@
               <input type="hidden" name="cidade_id" id="input_cidade_id">
             </div>
             <div class="campo-form"><label>Estado (UF)</label>
-              <input type="text" name="sigla_estado" id="input_sigla_estado" placeholder="Ex: SP" maxlength="2">
+              <input type="text" name="sigla_estado" id="input_sigla_estado" maxlength="2">
               <input type="hidden" name="estado_id" id="input_estado_id">
               <input type="hidden" name="nome_estado" id="input_nome_estado">
             </div>
@@ -119,7 +145,7 @@
             <div class="campo-form"><label>Contato</label><input type="text" name="contato"></div>
             <div class="campo-form"><label>Responsável</label><input type="text" name="responsavel"></div>
             <div class="campo-form campo-completo">
-              <label>Categorias</label>
+              <label>Categorias Adicionais</label>
               <div style="border: 1px solid var(--borda); border-radius: 6px; padding: 10px; max-height: 150px; overflow-y: auto; background-color: var(--branco);" id="categoriasChecklist">
                 <?php foreach($categorias as $cat): ?>
                   <div style="display: inline-flex; align-items: center; gap: 4px; margin: 4px 8px 4px 0;">
@@ -136,9 +162,12 @@
               </select>
             </div>
             <div class="campo-form" id="wrapperMatriz" style="display:none;">
-                <label>Código Fornecedor Matriz</label>
+                <label style="display:flex;gap:8px;align-items:center;justify-content:space-between;">
+                    <span>Código Fornecedor Matriz</span>
+                    <button type="button" class="btn btn-secundario" style="padding:4px 6px;margin:0;" title="Buscar matriz" onclick="Scopi.iconeBusca('fornecedores','fornMatrizCodigo','fornMatrizNome')"><img src="<?= BASE_URL ?>/public/assets/icons/iconeBusca.svg" style="width:13px;margin:0;" alt="Buscar"></button>
+                </label>
                 <div style="display: flex; gap: 8px; align-items: center;">
-                    <input type="text" id="fornMatrizCodigo" class="campo-input" style="width: 120px; text-transform: uppercase;" placeholder="FORN..." onblur="buscarFornecedorMatriz(this.value)">
+                    <input type="text" id="fornMatrizCodigo" class="campo-input" style="width: 120px; text-transform: uppercase;" placeholder="Ex: forn000000" onblur="buscarFornecedorMatriz(this.value)">
                     <span id="fornMatrizNome" style="font-size: 0.9rem; color: var(--texto-secundario); font-style: italic;">Digite o código da matriz...</span>
                     <input type="hidden" name="matriz_id" id="fornMatrizId" value="">
                 </div>
@@ -157,354 +186,195 @@
 </div>
 
 <script>
-let _idFornAtual = 0;
+    var _idFornAtual = 0;
+    
+    if (!window._hookedFornecedores) {
+        window._hookedFornecedores = true;
 
-const _abrirForn = Scopi.abrirRegistro.bind(Scopi);
-Scopi.abrirRegistro = async function(idModal, idForm, url, id, aba) {
-    _idFornAtual = id;
-    await _abrirForn(idModal, idForm, url, id, aba);
-    if (idModal === 'modalFornecedor') {
-        const form = document.getElementById(idForm);
-        
-        const badgeSituacao = document.querySelector(`#${idModal} [data-badge="situacao"]`);
-        const btnInativar = document.getElementById('btnInativarForn');
-        const btnReativar = document.getElementById('btnReativarForn');
-        const titulo = document.getElementById('tituloModalFornecedor');
-        const btnHistorico = document.querySelector(`#${idModal} .btn-historico`);
-        const blocoLeitura = document.getElementById('blocoLeituraForn');
-        
-        if (titulo) titulo.textContent = aba === 'editar' ? 'Edição de Cadastro de Fornecedor' : 'Cadastro de Fornecedor';
-        if (btnHistorico) btnHistorico.style.display = 'inline-flex';
-        if (blocoLeitura) blocoLeitura.style.display = 'grid';
-        
-        if (aba === 'editar') {
-            const inputCodigo = document.querySelector(`#${idModal} form [data-campo="codigo"]`);
-            const inputSituacao = document.querySelector(`#${idModal} form [data-campo="situacao_texto"]`);
-            const valCodigo = document.querySelector(`#${idModal} .grade-visualizar [data-campo="codigo"]`).textContent;
-            const valSit = badgeSituacao ? badgeSituacao.textContent : '';
-            if (inputCodigo) inputCodigo.value = valCodigo;
-            if (inputSituacao) inputSituacao.value = valSit;
-        }
+        window._abrirOriginalForn = Scopi.abrirRegistro;
+        Scopi.abrirRegistro = async function(idModal, idForm, url, id, aba) {
+            _idFornAtual = 0;
+            await window._abrirOriginalForn.call(Scopi, idModal, idForm, url, id, aba);
 
-        if (badgeSituacao && btnInativar && btnReativar) {
-          const situacao = badgeSituacao.textContent.trim().toLowerCase();
-          if (situacao === 'ativo' || situacao === 'ativa') {
-            if (aba === 'editar') btnInativar.style.display = '';
-            else btnInativar.style.display = 'none';
-            btnReativar.style.display = 'none';
-          } else {
-            btnInativar.style.display = 'none';
-            if (aba === 'editar') btnReativar.style.display = '';
-            else btnReativar.style.display = 'none';
-          }
-        }
-        
-        if (form) {
-            const tipo = form.querySelector('[name="tipo"]')?.value || 'matriz';
-            toggleMatrizSelect(tipo);
-            
-            const numField = document.getElementById('forn_numero');
-            const numCheck = document.getElementById('forn_sem_numero');
-            if (numField && numCheck) {
-                if (numField.value === 'S/N' || numField.value === 's/n') {
-                    numCheck.checked = true;
-                    numField.disabled = true;
-                } else {
-                    numCheck.checked = false;
-                    numField.disabled = false;
+            if (idModal === 'modalFornecedor') {
+                _idFornAtual = id;
+                const titulo = document.getElementById('tituloModalFornecedor');
+                const btnHistorico = document.querySelector(`#${idModal} .btn-historico`);
+                const btnInativar = document.getElementById('btnInativarForn');
+                const btnReativar = document.getElementById('btnReativarForn');
+                const badgeSituacao = document.querySelector(`#${idModal} [data-badge="situacao"]`);
+                
+                if (titulo) titulo.textContent = 'Cadastro de Fornecedor';
+                if (btnHistorico) btnHistorico.style.display = 'inline-flex';
+                
+                const inputCodigo = document.querySelector(`#${idModal} form [data-campo="codigo"]`);
+                const inputSituacao = document.querySelector(`#${idModal} form [data-campo="situacao_texto"]`);
+                const valCodigo = document.querySelector(`#${idModal} .grade-visualizar [data-campo="codigo"]`).textContent;
+                const valSit = badgeSituacao ? badgeSituacao.textContent : '';
+                if (inputCodigo) inputCodigo.value = valCodigo;
+                if (inputSituacao) inputSituacao.value = valSit;
+
+                document.getElementById('forn_numero').disabled = false;
+                document.getElementById('forn_sem_numero').checked = false;
+                
+                try {
+                    const resp = await fetch(Scopi.url(`/fornecedores/dados?id=${id}`), {credentials:'include',headers:{'X-Requested-With':'XMLHttpRequest'}});
+                    const json = await resp.json();
+                    if (json.sucesso && json.dados) {
+                        if (json.dados.matriz_id && parseInt(json.dados.matriz_id) > 0) {
+                            document.getElementById('fornMatrizCodigo').value = json.dados.matriz_codigo || '';
+                            document.getElementById('fornMatrizNome').textContent = json.dados.matriz_nome || 'Matriz vinculada';
+                            document.getElementById('wrapperMatriz').style.display = 'block';
+                        } else {
+                            document.getElementById('fornMatrizCodigo').value = '';
+                            document.getElementById('fornMatrizNome').textContent = 'Digite o código da matriz...';
+                            document.getElementById('wrapperMatriz').style.display = 'none';
+                        }
+
+                        if (json.dados.sem_numero === 1 || json.dados.sem_numero === '1' || json.dados.sem_numero === true) {
+                            document.getElementById('forn_sem_numero').checked = true;
+                            document.getElementById('forn_numero').value = '';
+                            document.getElementById('forn_numero').disabled = true;
+                        } else {
+                            document.getElementById('forn_numero').disabled = false;
+                            document.getElementById('forn_sem_numero').checked = false;
+                        }
+
+                        document.querySelectorAll('#categoriasChecklist input[type="checkbox"]').forEach(cb => cb.checked = false);
+                        if (json.dados.categorias && Array.isArray(json.dados.categorias)) {
+                            json.dados.categorias.forEach(catId => {
+                                const cb = document.getElementById('cat_' + catId);
+                                if(cb) cb.checked = true;
+                            });
+                        }
+                    }
+                } catch(e) { }
+
+                if (!window._listenerFornAba) {
+                    window._listenerFornAba = true;
+                    window.addEventListener('scopiAbaChange', function(e) {
+                        if (e.detail.idModal !== idModal) return;
+                        const abaAtual = e.detail.aba;
+                        if (titulo) titulo.textContent = abaAtual === 'editar' ? 'Edição de Cadastro de Fornecedor' : 'Cadastro de Fornecedor';
+                        if (badgeSituacao && btnInativar && btnReativar) {
+                            const situacao = badgeSituacao.textContent.trim().toLowerCase();
+                            if (situacao === 'ativo' || situacao === 'ativa') {
+                                if (abaAtual === 'editar') btnInativar.style.display = '';
+                                else btnInativar.style.display = 'none';
+                                btnReativar.style.display = 'none';
+                            } else {
+                                btnInativar.style.display = 'none';
+                                if (abaAtual === 'editar') btnReativar.style.display = '';
+                                else btnReativar.style.display = 'none';
+                            }
+                        }
+                    });
                 }
+                window.dispatchEvent(new CustomEvent('scopiAbaChange', { detail: { idModal, aba } }));
+            }
+        };
+
+        window._abrirCadastroOriginalForn = Scopi.abrirCadastro;
+        Scopi.abrirCadastro = function(idModal, idForm) {
+            _idFornAtual = 0;
+            if (idModal === 'modalFornecedor') {
+                const titulo = document.getElementById('tituloModalFornecedor');
+                const btnHistorico = document.querySelector(`#${idModal} .btn-historico`);
+                const btnInativar = document.getElementById('btnInativarForn');
+                const btnReativar = document.getElementById('btnReativarForn');
+                
+                if (titulo) titulo.textContent = 'Cadastro de Fornecedor';
+                if (btnInativar) btnInativar.style.display = 'none';
+                if (btnReativar) btnReativar.style.display = 'none';
+                if (btnHistorico) btnHistorico.style.display = 'none';
+                
+                document.getElementById('forn_numero').disabled = false;
+                document.getElementById('forn_sem_numero').checked = false;
+
+                document.getElementById('fornMatrizCodigo').value = '';
+                document.getElementById('fornMatrizNome').textContent = 'Digite o código da matriz...';
+                document.getElementById('wrapperMatriz').style.display = 'none';
+                
+                const inputSit = document.querySelector(`#${idModal} form [data-campo="situacao_texto"]`);
+                if (inputSit) inputSit.value = 'Ativo';
+                const inputCod = document.querySelector(`#${idModal} form [data-campo="codigo"]`);
+                if (inputCod) inputCod.value = '';
+                
+                document.querySelectorAll('#categoriasChecklist input[type="checkbox"]').forEach(cb => cb.checked = false);
             }
             
-            // RF05/RF08: Preencher categorias N:N e campo de visualização
-            try {
-                const resp = await fetch(Scopi.url(`/fornecedores/dados?id=${id}`), {headers:{'X-Requested-With':'XMLHttpRequest'}});
-                const json = await resp.json();
-                if (json.sucesso && json.dados && json.dados.categorias) {
-                    // Desmarcar todas primeiro
-                    document.querySelectorAll('#categoriasChecklist input[type="checkbox"]').forEach(cb => cb.checked = false);
-                    // Marcar as vinculadas
-                    json.dados.categorias.forEach(cat => {
-                        const cb = document.getElementById('cat_' + cat.id);
-                        if (cb) cb.checked = true;
-                    });
-                    // Atualizar campo de visualização
-                    const nomesEl = document.querySelector('[data-campo="categorias_nomes"]');
-                    if (nomesEl) {
-                        nomesEl.textContent = json.dados.categorias.map(c => c.nome).join(', ') || '—';
-                    }
-                }
-            } catch(e) { console.error(e); }
+            window._abrirCadastroOriginalForn.call(Scopi, idModal, idForm);
+        };
+    }
+
+async function buscarFornecedorMatriz(codigo) {
+    codigo = (codigo||'').trim();
+    const spanNome = document.getElementById('fornMatrizNome');
+    const inputId  = document.getElementById('fornMatrizId');
+    if (!codigo) {
+        if (spanNome) { spanNome.textContent = 'Digite o código da matriz...'; spanNome.style.color = 'var(--texto-secundario)'; }
+        if (inputId) inputId.value = '';
+        return;
+    }
+    if (spanNome) { spanNome.textContent = 'Buscando...'; spanNome.style.color = 'var(--texto-secundario)'; }
+    try {
+        const resp = await fetch(Scopi.url(`/fornecedores/consultar-codigo?codigo=${encodeURIComponent(codigo)}`), {credentials:'include'});
+        const data = await resp.json();
+        if (data.sucesso && data.dados) {
+            if (spanNome) { spanNome.textContent = data.dados.nome; spanNome.style.color = 'var(--sucesso)'; }
+            if (inputId) inputId.value = data.dados.id;
+        } else {
+            if (spanNome) { spanNome.textContent = 'Fornecedor não encontrado ou inativo'; spanNome.style.color = 'var(--alerta)'; }
+            if (inputId) inputId.value = '';
         }
+    } catch(e) {
+        if (spanNome) { spanNome.textContent = 'Erro ao buscar'; spanNome.style.color = 'var(--alerta)'; }
     }
-};
+}
 
-const _novoForn = Scopi.abrirCadastro.bind(Scopi);
-Scopi.abrirCadastro = function(idModal, idForm) {
-    _idFornAtual = 0;
-    _novoForn(idModal, idForm);
-    if (idModal === 'modalFornecedor') {
-        const titulo = document.getElementById('tituloModalFornecedor');
-        const btnHistorico = document.querySelector(`#${idModal} .btn-historico`);
-        const blocoLeitura = document.getElementById('blocoLeituraForn');
-        const btnInativar = document.getElementById('btnInativarForn');
-        const btnReativar = document.getElementById('btnReativarForn');
-        
-        if (titulo) titulo.textContent = 'Cadastro de Fornecedor';
-        if (btnInativar) btnInativar.style.display = 'none';
-        if (btnReativar) btnReativar.style.display = 'none';
-        if (btnHistorico) btnHistorico.style.display = 'none';
-        if (blocoLeitura) blocoLeitura.style.display = 'none';
-        
-        document.getElementById('forn_numero').disabled = false;
-        document.getElementById('forn_sem_numero').checked = false;
-        
-        document.getElementById('fornMatrizCodigo').value = '';
-        document.getElementById('fornMatrizNome').textContent = 'Digite o código da matriz...';
-        document.getElementById('fornMatrizId').value = '';
+async function buscarCategoriaFiltroForn(codigo) {
+    codigo = (codigo||'').trim();
+    const span = document.getElementById('filtroCatFornNome');
+    if (!span) return;
+    if (!codigo) { span.textContent = 'Digite...'; span.style.color = 'var(--texto-secundario)'; return; }
+    span.textContent = 'Buscando...'; span.style.color = 'var(--texto-secundario)';
+    try {
+        const resp = await fetch(Scopi.url(`/categorias/consultar-codigo?codigo=${encodeURIComponent(codigo)}`), {credentials:'include'});
+        const data = await resp.json();
+        if (data.sucesso && data.dados) { span.textContent = data.dados.nome; span.style.color = 'var(--sucesso)'; }
+        else { span.textContent = 'Não encontrada'; span.style.color = 'var(--alerta)'; }
+    } catch(e) { span.textContent = 'Erro'; span.style.color = 'var(--alerta)'; }
+}
 
-        toggleMatrizSelect('matriz');
-        // Desmarcar todas as categorias ao abrir novo cadastro
-        document.querySelectorAll('#categoriasChecklist input[type="checkbox"]').forEach(cb => cb.checked = false);
-    }
-};
+async function buscarMatrizFiltro(codigo) {
+    codigo = (codigo||'').trim();
+    const span = document.getElementById('filtroMatrizNome');
+    if (!span) return;
+    if (!codigo) { span.textContent = 'Digite...'; span.style.color = 'var(--texto-secundario)'; return; }
+    span.textContent = 'Buscando...'; span.style.color = 'var(--texto-secundario)';
+    try {
+        const resp = await fetch(Scopi.url(`/fornecedores/consultar-codigo?codigo=${encodeURIComponent(codigo)}`), {credentials:'include'});
+        const data = await resp.json();
+        if (data.sucesso && data.dados) { span.textContent = data.dados.nome; span.style.color = 'var(--sucesso)'; }
+        else { span.textContent = 'Não encontrada'; span.style.color = 'var(--alerta)'; }
+    } catch(e) { span.textContent = 'Erro'; span.style.color = 'var(--alerta)'; }
+}
 
 function toggleMatrizSelect(tipo) {
     const wrapper = document.getElementById('wrapperMatriz');
-    const inputCodigo = document.getElementById('fornMatrizCodigo');
-    if (tipo === 'filial') {
-        wrapper.style.display = 'block';
-        if (inputCodigo) inputCodigo.required = true;
-    } else {
-        wrapper.style.display = 'none';
-        if (inputCodigo) {
-            inputCodigo.required = false;
-            inputCodigo.value = '';
-            document.getElementById('fornMatrizNome').textContent = 'Digite o código da matriz...';
-            document.getElementById('fornMatrizId').value = '';
-        }
-    }
+    if (wrapper) wrapper.style.display = (tipo === 'filial') ? 'block' : 'none';
 }
 
-function toggleNumeroForn(checkbox) {
-    const num = document.getElementById('forn_numero');
-    if (checkbox.checked) {
-        num.value = 'S/N';
-        num.disabled = true;
-    } else {
-        num.value = '';
-        num.disabled = false;
-        num.focus();
-    }
+function toggleNumeroForn(cb) {
+    const input = document.getElementById('forn_numero');
+    if (input) { input.disabled = cb.checked; if (cb.checked) input.value = ''; }
 }
 
-function inativarFornecedor() {
-    if (!_idFornAtual) return;
-    Scopi.confirmarAcao('Inativar este fornecedor?','/fornecedores/inativar',{id:_idFornAtual});
-}
+document.addEventListener('DOMContentLoaded', () => {
+    const catFiltro = document.getElementById('filtroCatFornCodigo')?.value?.trim();
+    if (catFiltro) buscarCategoriaFiltroForn(catFiltro);
 
-function reativarFornecedor() {
-    if (!_idFornAtual) return;
-    Scopi.confirmarAcao('Reativar este fornecedor?','/fornecedores/reativar',{id:_idFornAtual});
-}
-
-async function buscarFornecedorMatriz(codigo) {
-    codigo = codigo.trim();
-    const spanNome = document.getElementById('fornMatrizNome');
-    const inputId = document.getElementById('fornMatrizId');
-    
-    if (!codigo) {
-        spanNome.textContent = 'Digite o código da matriz...';
-        spanNome.style.color = 'var(--texto-secundario)';
-        inputId.value = '';
-        return;
-    }
-    
-    spanNome.textContent = 'Buscando...';
-    spanNome.style.color = 'var(--texto-secundario)';
-    
-    try {
-        const resp = await fetch(`${SCOPI_BASE}/fornecedores/consultar-codigo?codigo=${encodeURIComponent(codigo)}`);
-        const data = await resp.json();
-        if (data.sucesso && data.dados) {
-            spanNome.textContent = data.dados.razao_social;
-            spanNome.style.color = 'var(--sucesso)';
-            inputId.value = data.dados.id;
-        } else {
-            spanNome.textContent = 'Matriz não encontrada ou inativa';
-            spanNome.style.color = 'var(--alerta)';
-            inputId.value = '';
-        }
-    } catch (err) {
-        spanNome.textContent = 'Erro ao buscar';
-        spanNome.style.color = 'var(--alerta)';
-        inputId.value = '';
-    }
-}
-
-async function consultarCnpjReceita(input) {
-    if (!input) return;
-    
-    // Limpa os caracteres especiais do input
-    const cnpj = input.value.replace(/\D/g, '');
-    input.value = cnpj;
-
-    if (cnpj.length === 0) return;
-
-    if (cnpj.length !== 14) {
-        Scopi.toast('erro', 'Por favor, insira um CNPJ com 14 dígitos numéricos.');
-        return;
-    }
-
-    // Evita consultas repetidas para o mesmo CNPJ
-    if (input.dataset.ultimoConsultado === cnpj) {
-        return;
-    }
-    input.dataset.ultimoConsultado = cnpj;
-
-    const originalPlaceholder = input.placeholder;
-    input.disabled = true;
-    input.placeholder = 'Consultando...';
-
-    try {
-        const resp = await fetch(Scopi.url(`/fornecedores/consultar-cnpj?cnpj=${cnpj}`), {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        });
-        const res = await resp.json();
-        
-        if (res.sucesso && res.dados) {
-            const data = res.dados;
-            const form = document.getElementById('formFornecedor');
-            
-            // Preencher campos
-            form.querySelector('[name="razao_social"]').value = data.razao_social || '';
-            
-            const est = data.estabelecimento || {};
-            form.querySelector('[name="nome_fantasia"]').value = est.nome_fantasia || '';
-            form.querySelector('[name="email"]').value = est.email || '';
-            
-            // Format phone number
-            const ddd = est.ddd1 || '';
-            const tel = est.telefone1 || '';
-            form.querySelector('[name="contato"]').value = ddd && tel ? `(${ddd}) ${tel}` : (tel || '');
-            
-            // Fill normalized address fields
-            form.querySelector('[name="cep"]').value = est.cep || '';
-            form.querySelector('[name="logradouro"]').value = est.tipo_logradouro ? est.tipo_logradouro + ' ' + est.logradouro : (est.logradouro || '');
-            form.querySelector('[name="numero"]').value = est.numero || '';
-            form.querySelector('[name="complemento"]').value = est.complemento || '';
-            form.querySelector('[name="bairro"]').value = est.bairro || '';
-            
-            form.querySelector('[name="cidade_id"]').value = est.cidade ? (est.cidade.id || '') : '';
-            form.querySelector('[name="nome_cidade"]').value = est.cidade ? (est.cidade.nome || '') : '';
-            
-            form.querySelector('[name="estado_id"]').value = est.estado ? (est.estado.id || '') : '';
-            form.querySelector('[name="nome_estado"]').value = est.estado ? (est.estado.nome || '') : '';
-            form.querySelector('[name="sigla_estado"]').value = est.estado ? (est.estado.sigla || '') : '';
-            
-            form.querySelector('[name="pais_id"]').value = est.pais ? (est.pais.id || '') : '';
-            form.querySelector('[name="nome_pais"]').value = est.pais ? (est.pais.nome || '') : '';
-            
-            // Category (activity principal) - não mais usado, categorias são N:N
-            // Manter como referência: est.atividade_principal.descricao
-
-            // Responsible (first socio if exists)
-            if (data.socios && data.socios.length > 0) {
-                form.querySelector('[name="responsavel"]').value = data.socios[0].nome || '';
-            }
-            
-            // Tipo
-            const tipo = est.tipo ? est.tipo.toLowerCase() : 'matriz';
-            const selectTipo = form.querySelector('[name="tipo"]');
-            if (selectTipo) {
-                selectTipo.value = tipo;
-                toggleMatrizSelect(tipo);
-            }
-            
-            Scopi.toast('sucesso', 'Dados do CNPJ importados com sucesso!');
-        } else {
-            Scopi.toast('erro', res.mensagem || 'Não foi possível encontrar este CNPJ.');
-            input.dataset.ultimoConsultado = '';
-        }
-    } catch(e) {
-        console.error(e);
-        Scopi.toast('erro', 'Falha na comunicação com o servidor.');
-        input.dataset.ultimoConsultado = '';
-    } finally {
-        input.disabled = false;
-        input.placeholder = originalPlaceholder;
-    }
-}
-
-function mascararCEP(input) {
-    let v = input.value.replace(/\D/g, '').substring(0, 8);
-    if (v.length > 5) v = v.slice(0, 5) + '-' + v.slice(5);
-    input.value = v;
-}
-
-async function consultarCEP(input) {
-    if (!input) return;
-    const cep = input.value.replace(/\D/g, '');
-    if (cep.length !== 8) return;
-
-    if (input.dataset.ultimoConsultado === cep) return;
-    input.dataset.ultimoConsultado = cep;
-
-    const originalPlaceholder = input.placeholder;
-    input.disabled = true;
-    input.placeholder = 'Buscando...';
-
-    try {
-        const resp = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
-        const data = await resp.json();
-
-        if (!data.erro) {
-            const form = document.getElementById('formFornecedor');
-            form.querySelector('[name="logradouro"]').value = data.logradouro || '';
-            form.querySelector('[name="bairro"]').value = data.bairro || '';
-            form.querySelector('[name="nome_cidade"]').value = data.localidade || '';
-            form.querySelector('[name="sigla_estado"]').value = data.uf || '';
-            // Reset IDs to force DB check since we are typing a new text location
-            form.querySelector('[name="cidade_id"]').value = '';
-            form.querySelector('[name="estado_id"]').value = '';
-            form.querySelector('[name="nome_estado"]').value = '';
-            form.querySelector('[name="pais_id"]').value = '';
-            form.querySelector('[name="nome_pais"]').value = 'Brasil';
-            
-            form.querySelector('[name="numero"]').focus();
-            Scopi.toast('sucesso', 'CEP encontrado!');
-        } else {
-            Scopi.toast('erro', 'CEP não encontrado.');
-            input.dataset.ultimoConsultado = '';
-        }
-    } catch(e) {
-        console.error(e);
-        Scopi.toast('erro', 'Falha ao buscar CEP.');
-        input.dataset.ultimoConsultado = '';
-    } finally {
-        input.disabled = false;
-        input.placeholder = originalPlaceholder;
-    }
-}
-
-// Clear IDs if geographic fields are manually updated by user using Event Delegation
-document.addEventListener('input', function(e) {
-    const target = e.target;
-    if (!target) return;
-    const form = document.getElementById('formFornecedor');
-    if (!form || !form.contains(target)) return;
-
-    if (target.name === 'nome_cidade') {
-        const el = form.querySelector('[name="cidade_id"]');
-        if (el) el.value = '';
-    } else if (target.name === 'sigla_estado') {
-        const elId = form.querySelector('[name="estado_id"]');
-        if (elId) elId.value = '';
-        const elName = form.querySelector('[name="nome_estado"]');
-        if (elName) elName.value = '';
-    } else if (target.name === 'nome_pais') {
-        const el = form.querySelector('[name="pais_id"]');
-        if (el) el.value = '';
-    }
+    const matFiltro = document.getElementById('filtroMatrizCodigo')?.value?.trim();
+    if (matFiltro) buscarMatrizFiltro(matFiltro);
 });
 </script>
-

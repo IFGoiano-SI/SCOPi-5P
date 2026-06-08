@@ -7,6 +7,12 @@ class FornecedorControlador extends BaseController {
         Auxiliares::exigirPerfil('administrador', 'cadastrador', 'comprador', 'gerente', 'usuario', 'contabilidade');
         $filtros = $_GET;
         $fornecedores = $this->m->listarComFiltros($filtros);
+
+        if (isset($_GET['busca_modal'])) {
+            $this->json(true, '', $fornecedores);
+            return;
+        }
+
         $matrizes = $this->m->listarMatrizes();
         // Carregar categorias para o formulário (RF05/RF08)
         $bd = \Config\BancoDados::obterInstancia()->obterConexao();
@@ -21,11 +27,26 @@ class FornecedorControlador extends BaseController {
     public function consultarCodigo(): void {
         $codigo = trim($_GET['codigo'] ?? '');
         if (empty($codigo)) { $this->json(false, 'Código inválido.'); return; }
-        $matriz = $this->m->buscarMatrizPorCodigo($codigo);
-        if ($matriz) {
-            $this->json(true, '', $matriz);
+        
+        $matrizApenas = isset($_GET['matriz']) && $_GET['matriz'] === '1';
+        
+        if ($matrizApenas) {
+            $matriz = $this->m->buscarMatrizPorCodigo($codigo);
+            if ($matriz) {
+                $this->json(true, '', $matriz);
+            } else {
+                $this->json(false, 'Matriz não encontrada ou inativa.');
+            }
         } else {
-            $this->json(false, 'Matriz não encontrada ou inativa.');
+            $bd = \Config\BancoDados::obterInstancia()->obterConexao();
+            $q = $bd->prepare("SELECT id, razao_social as nome FROM fornecedores WHERE codigo = :codigo AND situacao = 'ativo'");
+            $q->execute([':codigo' => $codigo]);
+            $res = $q->fetch(\PDO::FETCH_ASSOC);
+            if ($res) {
+                $this->json(true, '', $res);
+            } else {
+                $this->json(false, 'Fornecedor não encontrado ou inativo.');
+            }
         }
     }
     public function salvar(): void {
@@ -95,8 +116,19 @@ class FornecedorControlador extends BaseController {
             }
         }
     }
-    public function inativar(): void { Auxiliares::exigirPerfil('administrador','cadastrador'); $ok=$this->m->inativar((int)($_POST['id']??0)); $this->json($ok,$ok?'Inativado.':'Erro.'); }
-    public function reativar(): void { Auxiliares::exigirPerfil('administrador','cadastrador'); $ok=$this->m->reativar((int)($_POST['id']??0)); $this->json($ok,$ok?'Reativado.':'Erro.'); }
+    public function inativar(): void {
+        Auxiliares::exigirPerfil('administrador','cadastrador');
+        $usuario = Auxiliares::usuarioLogado();
+        $ok = $this->m->inativar((int)($_POST['id']??0), (int)$usuario['id']);
+        $this->json($ok, $ok ? 'Inativado.' : 'Erro.');
+    }
+
+    public function reativar(): void {
+        Auxiliares::exigirPerfil('administrador','cadastrador');
+        $usuario = Auxiliares::usuarioLogado();
+        $ok = $this->m->reativar((int)($_POST['id']??0), (int)$usuario['id']);
+        $this->json($ok, $ok ? 'Reativado.' : 'Erro.');
+    }
 
     public function consultarCnpj(): void {
         Auxiliares::exigirPerfil('administrador', 'cadastrador');
@@ -134,22 +166,7 @@ class FornecedorControlador extends BaseController {
         $this->json(false, 'Não foi possível consultar o CNPJ no momento. Tente novamente ou digite manualmente.');
     }
 
-    public function consultarCodigo(): void {
-        Auxiliares::exigirAutenticacao();
-        $codigo = trim($_GET['codigo'] ?? '');
-        if ($codigo === '') {
-            $this->json(false, 'Código não informado.'); return;
-        }
-        $bd = \Config\BancoDados::obterInstancia()->obterConexao();
-        $q = $bd->prepare("SELECT id, razao_social as nome FROM fornecedores WHERE codigo = :codigo AND situacao = 'ativo'");
-        $q->execute([':codigo' => $codigo]);
-        $res = $q->fetch(\PDO::FETCH_ASSOC);
-        if ($res) {
-            $this->json(true, '', $res);
-        } else {
-            $this->json(false, 'Fornecedor não encontrado ou inativo.');
-        }
-    }
+
 
     public function exportar(): void {
         Auxiliares::exigirPerfil('administrador', 'cadastrador', 'comprador', 'gerente', 'usuario', 'contabilidade');

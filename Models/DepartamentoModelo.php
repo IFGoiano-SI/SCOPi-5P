@@ -30,11 +30,14 @@ class DepartamentoModelo extends ModeloBase {
     }
 
     public function cadastrar(array $dados, ?int $responsavelId = null): int {
-        $codigo = 'DEP-' . strtoupper(substr(md5(uniqid()), 0, 6));
+        $qMax = $this->bd->query("SELECT MAX(CAST(SUBSTRING(codigo, 4) AS UNSIGNED)) FROM departamentos");
+        $maxVal = (int) $qMax->fetchColumn();
+        $dados['codigo'] = 'dep' . sprintf('%04d', $maxVal + 1);
+
         $this->bd->prepare("
             INSERT INTO departamentos (nome, codigo, gerente_id, situacao, criado_em)
             VALUES (:nome, :codigo, :gerente_id, 'ativo', NOW())
-        ")->execute([':nome'=>$dados['nome'], ':codigo'=>$codigo, ':gerente_id'=>$dados['gerente_id']]);
+        ")->execute([':nome'=>$dados['nome'], ':codigo'=>$dados['codigo'], ':gerente_id'=>$dados['gerente_id']]);
         $novoId = (int) $this->bd->lastInsertId();
         if ($responsavelId) {
             $this->registrarHistorico($this->tabela, $novoId, [], $dados, $responsavelId);
@@ -47,5 +50,16 @@ class DepartamentoModelo extends ModeloBase {
         $ok = $this->bd->prepare("\n            UPDATE departamentos SET nome=:nome, gerente_id=:gerente_id, atualizado_em=NOW() WHERE id=:id\n        ")->execute([':nome'=>$dados['nome'], ':gerente_id'=>$dados['gerente_id'], ':id'=>$id]);
         if ($ok && $anterior) $this->registrarHistorico($this->tabela, $id, $anterior, $dados, $responsavelId);
         return $ok;
+    }
+
+    public function buscarComGerente(int $id): ?array {
+        $q = $this->bd->prepare("
+            SELECT d.*, u.nome AS nome_gerente, u.matricula AS gerente_matricula, u.id AS gerente_id
+            FROM departamentos d
+            LEFT JOIN usuarios u ON u.id = d.gerente_id
+            WHERE d.id = :id LIMIT 1
+        ");
+        $q->execute([':id' => $id]);
+        return $q->fetch() ?: null;
     }
 }

@@ -13,7 +13,7 @@ class UsuarioModelo extends ModeloBase {
 
     public function buscarComDepartamento(int $id): ?array {
         $q = $this->bd->prepare(
-            "SELECT u.*, d.nome AS nome_departamento FROM usuarios u
+            "SELECT u.*, d.nome AS nome_departamento, d.codigo AS departamento_codigo FROM usuarios u
              LEFT JOIN departamentos d ON d.id = u.departamento_id
              WHERE u.id = :id LIMIT 1"
         );
@@ -22,14 +22,15 @@ class UsuarioModelo extends ModeloBase {
     }
 
     public function listarComFiltros(array $filtros = [], ?int $departamentoId = null): array {
-        $sql = "SELECT u.*, d.nome AS nome_departamento FROM usuarios u
+        $sql = "SELECT u.*, d.nome AS nome_departamento, d.codigo AS departamento_codigo FROM usuarios u
                 LEFT JOIN departamentos d ON d.id = u.departamento_id WHERE 1=1";
         $p = [];
         if ($departamentoId) { $sql .= ' AND u.departamento_id = :dep'; $p[':dep'] = $departamentoId; }
-        if (!empty($filtros['nome']))      { $sql .= ' AND u.nome LIKE :nome';      $p[':nome']      = "%{$filtros['nome']}%"; }
-        if (!empty($filtros['matricula'])) { $sql .= ' AND u.matricula LIKE :matricula'; $p[':matricula'] = "%{$filtros['matricula']}%"; }
-        if (!empty($filtros['departamento_codigo'])) { $sql .= ' AND d.codigo = :depcod'; $p[':depcod'] = $filtros['departamento_codigo']; }
-        if (!empty($filtros['situacao']))  { $sql .= ' AND u.situacao = :situacao'; $p[':situacao']  = $filtros['situacao']; }
+        if (!empty($filtros['nome']))               { $sql .= ' AND u.nome LIKE :nome';          $p[':nome']   = "%{$filtros['nome']}%"; }
+        if (!empty($filtros['matricula']))           { $sql .= ' AND u.matricula LIKE :mat';      $p[':mat']    = "%{$filtros['matricula']}%"; }
+        if (!empty($filtros['departamento_codigo'])) { $sql .= ' AND d.codigo = :depcod';         $p[':depcod'] = $filtros['departamento_codigo']; }
+        if (!empty($filtros['situacao']))            { $sql .= ' AND u.situacao = :situacao';     $p[':situacao'] = $filtros['situacao']; }
+        if (!empty($filtros['perfil']))              { $sql .= ' AND u.perfil = :perfil';         $p[':perfil'] = $filtros['perfil']; }
         $sql .= ' ORDER BY u.nome ASC';
         $q = $this->bd->prepare($sql);
         $q->execute($p);
@@ -52,7 +53,7 @@ class UsuarioModelo extends ModeloBase {
         ]);
         $novoId = (int) $this->bd->lastInsertId();
         
-        $matriculaDefinitiva = '26' . str_pad($novoId, 6, '0', STR_PAD_LEFT);
+        $matriculaDefinitiva = date('y') . str_pad($novoId, 6, '0', STR_PAD_LEFT);
         $this->bd->prepare("UPDATE usuarios SET matricula = :matr WHERE id = :id")->execute([':matr' => $matriculaDefinitiva, ':id' => $novoId]);
         
         $dados['matricula'] = $matriculaDefinitiva;

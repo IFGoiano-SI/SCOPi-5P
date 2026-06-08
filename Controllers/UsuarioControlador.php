@@ -18,6 +18,12 @@ class UsuarioControlador extends BaseController {
         $filtros = $_GET;
         $departamentoId = ($usuario['perfil'] ?? '') === 'gerente' ? (int) $usuario['departamento_id'] : null;
         $usuarios = $this->modelo->listarComFiltros($filtros, $departamentoId);
+
+        if (isset($_GET['busca_modal'])) {
+            $this->json(true, '', $usuarios);
+            return;
+        }
+
         $departamentos = (new DepartamentoModelo())->listarAtivos();
 
         $this->renderizar('cadastros/usuarios', compact('usuarios', 'departamentos', 'filtros'));
@@ -66,11 +72,12 @@ class UsuarioControlador extends BaseController {
         $dados = [
             'nome' => trim($_POST['nome'] ?? ''),
             'email' => trim($_POST['email'] ?? ''),
-            'senha' => $_POST['senha'] ?? '',
             'matricula' => trim($_POST['matricula'] ?? ''),
             'contato' => trim($_POST['contato'] ?? ''),
             'departamento_id' => (int) ($_POST['departamento_id'] ?? 0),
             'perfil' => trim($_POST['perfil'] ?? 'usuario'),
+            'senha' => trim($_POST['senha'] ?? ''),
+            'senha' => trim($_POST['senha'] ?? ''),
         ];
 
         if ($dados['nome'] === '' || $dados['email'] === '' || $dados['departamento_id'] <= 0) {
@@ -78,22 +85,8 @@ class UsuarioControlador extends BaseController {
             return;
         }
 
-        // Validar complexidade da senha
-        if ($id === 0 || !empty($dados['senha'])) {
-            $senhaTestada = $dados['senha'];
-            if ($id === 0 || $senhaTestada !== '') {
-                if (strlen($senhaTestada) < 8 ||
-                     !preg_match('/[A-Z]/', $senhaTestada) ||
-                     !preg_match('/[a-z]/', $senhaTestada) ||
-                     !preg_match('/[0-9]/', $senhaTestada) ||
-                     !preg_match('/[^A-Za-z0-9]/', $senhaTestada)) {
-                    $this->json(false, 'A senha deve conter no mínimo 8 caracteres, incluindo letras maiúsculas, minúsculas, números e caracteres especiais.');
-                    return;
-                }
-            }
-        }
-
         if ($id === 0) {
+            if (empty($dados['senha'])) $dados['senha'] = 'SCOPi2026*';
             $novoId = $this->modelo->cadastrar($dados, (int) $responsavel['id']);
             $this->json(true, 'Usuario cadastrado.', ['id' => $novoId]);
             return;
@@ -111,9 +104,10 @@ class UsuarioControlador extends BaseController {
 
     public function inativar(): void {
         Auxiliares::exigirPerfil('administrador');
+        $responsavel = Auxiliares::usuarioLogado();
         $id = (int) ($_POST['id'] ?? 0);
         $usuario = $this->modelo->buscarPorId($id);
-        $ok = $this->modelo->inativar($id);
+        $ok = $this->modelo->inativar($id, (int)$responsavel['id']);
         if ($ok && $usuario) {
             \Config\Notificador::notificarUsuario($id, "Cadastro inativado", "Seu cadastro no SCOPi foi inativado.");
             \Config\Notificador::enviarEmail($usuario['email'], "Cadastro Inativado - SCOPi", "Olá {$usuario['nome']},\n\nSeu cadastro no sistema SCOPi foi inativado.");
@@ -123,9 +117,10 @@ class UsuarioControlador extends BaseController {
 
     public function reativar(): void {
         Auxiliares::exigirPerfil('administrador');
+        $responsavel = Auxiliares::usuarioLogado();
         $id = (int) ($_POST['id'] ?? 0);
         $usuario = $this->modelo->buscarPorId($id);
-        $ok = $this->modelo->reativar($id);
+        $ok = $this->modelo->reativar($id, (int)$responsavel['id']);
         if ($ok && $usuario) {
             \Config\Notificador::notificarUsuario($id, "Cadastro reativado", "Seu cadastro no SCOPi foi reativado.");
             \Config\Notificador::enviarEmail($usuario['email'], "Cadastro Reativado - SCOPi", "Olá {$usuario['nome']},\n\nSeu cadastro no sistema SCOPi foi reativado.");
@@ -133,10 +128,21 @@ class UsuarioControlador extends BaseController {
         $this->json($ok, $ok ? 'Reativado.' : 'Erro.');
     }
 
-    public function exportar(): void {
-        Auxiliares::exigirPerfil('administrador', 'gerente');
-        $usuario = Auxiliares::usuarioLogado();
-        $filtros = $_GET;
+    public function redefinirSenha(): void {
+        Auxiliares::exigirPerfil('administrador');
+        $id = (int) ($_POST['id'] ?? 0);
+        $senha = trim($_POST['senhaPadrao'] ?? 'SCOPi2026*');
+        if (empty($senha)) $senha = 'SCOPi2026*';
+        
+        $responsavel = Auxiliares::usuarioLogado();
+        $ok = $this->modelo->atualizarSenha($id, $senha);
+        
+        if ($ok) {
+            $this->modelo->registrarAcaoPersonalizada('usuarios', $id, (int)$responsavel['id'], 'Redefinição de Senha', "A senha foi redefinida para a senha padrão ($senha) pelo administrador.");
+            $this->json(true, "Senha redefinida com sucesso para $senha.");
+        } else {
+            $this->json(false, 'Erro ao redefinir a senha.');
+        }
         $departamentoId = ($usuario['perfil'] ?? '') === 'gerente' ? (int) $usuario['departamento_id'] : null;
         $usuarios = $this->modelo->listarComFiltros($filtros, $departamentoId);
 

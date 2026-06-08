@@ -15,6 +15,12 @@ class CategoriaControlador extends BaseController {
         Auxiliares::exigirAutenticacao();
         $filtros = $_GET;
         $categorias = $this->modelo->listarComFiltros($filtros);
+
+        if (isset($_GET['busca_modal'])) {
+            $this->json(true, '', $categorias);
+            return;
+        }
+
         $this->renderizar('cadastros/categorias', compact('categorias', 'filtros'));
     }
 
@@ -77,15 +83,17 @@ class CategoriaControlador extends BaseController {
 
     public function inativar(): void {
         Auxiliares::exigirPerfil('administrador', 'cadastrador');
+        $usuario = Auxiliares::usuarioLogado();
         $id = (int)($_POST['id'] ?? 0);
-        $ok = $this->modelo->inativar($id);
+        $ok = $this->modelo->inativar($id, (int)$usuario['id']);
         $this->json($ok, $ok ? 'Categoria inativada com sucesso.' : 'Erro ao inativar categoria.');
     }
 
     public function reativar(): void {
         Auxiliares::exigirPerfil('administrador', 'cadastrador');
+        $usuario = Auxiliares::usuarioLogado();
         $id = (int)($_POST['id'] ?? 0);
-        $ok = $this->modelo->reativar($id);
+        $ok = $this->modelo->reativar($id, (int)$usuario['id']);
         $this->json($ok, $ok ? 'Categoria reativada com sucesso.' : 'Erro ao reativar categoria.');
     }
 
@@ -94,11 +102,12 @@ class CategoriaControlador extends BaseController {
         $filtros = $_GET;
         $categorias = $this->modelo->listarComFiltros($filtros);
 
-        $cabecalhos = ['ID', 'Nome', 'Situação', 'Criado Em'];
+        $cabecalhos = ['ID', 'Código', 'Nome', 'Situação', 'Criado Em'];
         $dadosCsv = [];
         foreach ($categorias as $c) {
             $dadosCsv[] = [
                 $c['id'],
+                $c['codigo'],
                 $c['nome'],
                 ucfirst($c['situacao']),
                 date('d/m/Y H:i', strtotime($c['criado_em']))

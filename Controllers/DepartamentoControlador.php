@@ -15,6 +15,12 @@ class DepartamentoControlador extends BaseController {
         $filtros       = $_GET;
         $departamentoId = ($usuario['perfil'] ?? '') === 'gerente' ? (int) $usuario['departamento_id'] : null;
         $departamentos = $this->modelo->listarComFiltros($filtros, $departamentoId);
+
+        if (isset($_GET['busca_modal'])) {
+            $this->json(true, '', $departamentos);
+            return;
+        }
+
         $gerentes      = (new UsuarioModelo())->listarComFiltros(['perfil' => 'gerente']);
         $this->renderizar('cadastros/departamentos', compact('departamentos','gerentes','filtros'));
     }
@@ -22,7 +28,7 @@ class DepartamentoControlador extends BaseController {
     public function dados(): void {
         Auxiliares::exigirAutenticacao();
         $id = (int)($_GET['id'] ?? 0);
-        $dep = $this->modelo->buscarPorId($id);
+        $dep = $this->modelo->buscarComGerente($id);
         $dep ? $this->json(true, '', $dep) : $this->json(false, 'Não encontrado.');
     }
 
@@ -75,9 +81,10 @@ class DepartamentoControlador extends BaseController {
 
     public function inativar(): void {
         Auxiliares::exigirPerfil('administrador','cadastrador');
+        $usuario = Auxiliares::usuarioLogado();
         $id = (int)($_POST['id'] ?? 0);
         $dep = $this->modelo->buscarPorId($id);
-        $ok = $this->modelo->inativar($id);
+        $ok = $this->modelo->inativar($id, (int)$usuario['id']);
         if ($ok && $dep && !empty($dep['gerente_id'])) {
             $gerente = (new UsuarioModelo())->buscarPorId((int)$dep['gerente_id']);
             if ($gerente) {
@@ -90,9 +97,10 @@ class DepartamentoControlador extends BaseController {
 
     public function reativar(): void {
         Auxiliares::exigirPerfil('administrador','cadastrador');
+        $usuario = Auxiliares::usuarioLogado();
         $id = (int)($_POST['id'] ?? 0);
         $dep = $this->modelo->buscarPorId($id);
-        $ok = $this->modelo->reativar($id);
+        $ok = $this->modelo->reativar($id, (int)$usuario['id']);
         if ($ok && $dep && !empty($dep['gerente_id'])) {
             $gerente = (new UsuarioModelo())->buscarPorId((int)$dep['gerente_id']);
             if ($gerente) {

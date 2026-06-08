@@ -11,6 +11,12 @@ class ProdutoControlador extends BaseController {
         Auxiliares::exigirAutenticacao();
         $filtros = $_GET;
         $produtos = $this->m->listarComFiltros($filtros);
+
+        if (isset($_GET['busca_modal'])) {
+            $this->json(true, '', $produtos);
+            return;
+        }
+
         $categorias = (new \Models\CategoriaModelo())->listarAtivas();
         $this->renderizar('cadastros/produtos', compact('produtos', 'filtros', 'categorias'));
     }
@@ -26,8 +32,19 @@ class ProdutoControlador extends BaseController {
         if(empty($dados['nome'])){$this->json(false,'Nome obrigatório.');return;}
         if($id===0){$this->json(true,'Produto cadastrado.',['id'=>$this->m->cadastrar($dados, $resp['id'])]);} else{$ok=$this->m->atualizar($id,$dados,$resp['id']);$this->json($ok,$ok?'Atualizado.':'Erro.');}
     }
-    public function inativar(): void { Auxiliares::exigirPerfil('administrador','cadastrador'); $ok=$this->m->inativar((int)($_POST['id']??0)); $this->json($ok,$ok?'Inativado.':'Erro.'); }
-    public function reativar(): void { Auxiliares::exigirPerfil('administrador','cadastrador'); $ok=$this->m->reativar((int)($_POST['id']??0)); $this->json($ok,$ok?'Reativado.':'Erro.'); }
+    public function inativar(): void {
+        Auxiliares::exigirPerfil('administrador','cadastrador');
+        $usuario = Auxiliares::usuarioLogado();
+        $ok = $this->m->inativar((int)($_POST['id']??0), (int)$usuario['id']);
+        $this->json($ok, $ok ? 'Inativado.' : 'Erro.');
+    }
+
+    public function reativar(): void {
+        Auxiliares::exigirPerfil('administrador','cadastrador');
+        $usuario = Auxiliares::usuarioLogado();
+        $ok = $this->m->reativar((int)($_POST['id']??0), (int)$usuario['id']);
+        $this->json($ok, $ok ? 'Reativado.' : 'Erro.');
+    }
     public function ativos(): void {
         Auxiliares::exigirAutenticacao();
         $this->json(true, '', $this->m->listarAtivos());

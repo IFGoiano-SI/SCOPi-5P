@@ -16,12 +16,21 @@ class ProdutoModelo extends ModeloBase {
         return $q->fetchAll();
     }
 
+    public function buscarPorId(int $id): ?array {
+        $q = $this->bd->prepare("SELECT p.*, c.codigo AS categoria_codigo, c.nome AS categoria_nome FROM produtos p LEFT JOIN categorias c ON c.id=p.categoria_id WHERE p.id = :id");
+        $q->execute([':id' => $id]);
+        return $q->fetch(\PDO::FETCH_ASSOC) ?: null;
+    }
+
     public function cadastrar(array $dados, ?int $responsavelId = null): int {
-        $codigo = 'PRD-' . strtoupper(substr(md5(uniqid()), 0, 6));
+        $qMax = $this->bd->query("SELECT MAX(CAST(SUBSTRING(codigo, 5) AS UNSIGNED)) FROM produtos");
+        $maxVal = (int) $qMax->fetchColumn();
+        $dados['codigo'] = 'prod' . sprintf('%06d', $maxVal + 1);
+
         $this->bd->prepare("
             INSERT INTO produtos (nome, descricao, codigo, categoria_id, situacao, criado_em)
             VALUES (:nome, :desc, :cod, :cat, 'ativo', NOW())
-        ")->execute([':nome'=>$dados['nome'],':desc'=>$dados['descricao'],':cod'=>$codigo,':cat'=>$dados['categoria_id']]);
+        ")->execute([':nome'=>$dados['nome'],':desc'=>$dados['descricao'],':cod'=>$dados['codigo'],':cat'=>$dados['categoria_id']]);
         $novoId = (int) $this->bd->lastInsertId();
         if ($responsavelId) {
             $this->registrarHistorico($this->tabela, $novoId, [], $dados, $responsavelId);
