@@ -103,4 +103,29 @@ class Auxiliares {
         fclose($saida);
         exit;
     }
+
+    public static function formatarStatus(string $status): string {
+        $mapa = [
+            'em_aberto' => 'Aberto',
+            'aberta' => 'Aberto',
+            'autorizada' => 'Autorizado',
+            'autorizado' => 'Autorizado',
+            'em_cotacao' => 'Em Cotação',
+            'fechada' => 'Fechado',
+            'fechado' => 'Fechado',
+            'enviada' => 'Enviado',
+            'enviado' => 'Enviado',
+            'parcialmente_atendida' => 'Parcialmente Atendido',
+            'parcialmente_atendido' => 'Parcialmente Atendido',
+            'concluida' => 'Concluído',
+            'concluido' => 'Concluído',
+            'cancelada' => 'Cancelado',
+            'cancelado' => 'Cancelado',
+            'recusada' => 'Recusado',
+            'recusado' => 'Recusado',
+            'registrada' => 'Registrado',
+            'vinculada' => 'Vinculado'
+        ];
+        return $mapa[strtolower($status)] ?? ucfirst(str_replace('_', ' ', $status));
+    }
 }

@@ -24,7 +24,9 @@ class BaseController{
     protected function renderizar(string $view, array $variaveis = []): void {
         extract($variaveis);
         $flash   = Auxiliares::obterFlash();
-        $usuario = Auxiliares::usuarioLogado();
+        if (!isset($usuario)) {
+            $usuario = Auxiliares::usuarioLogado();
+        }
         require_once __DIR__ . '/../Views/templates/header.php';
         require_once __DIR__ . '/../Views/' . $view . '.php';
         require_once __DIR__ . '/../Views/templates/footer.php';

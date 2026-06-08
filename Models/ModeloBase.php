@@ -18,20 +18,37 @@ abstract class ModeloBase {
         return $q->fetch() ?: null;
     }
 
-    public function inativar(int $id): bool {
-        return $this->bd->prepare(
+    public function inativar(int $id, ?int $usuarioId = null): bool {
+        $ok = $this->bd->prepare(
             "UPDATE {$this->tabela} SET situacao = 'inativo', atualizado_em = NOW() WHERE id = :id"
         )->execute([':id' => $id]);
+
+        if ($ok && $usuarioId) {
+            $this->registrarHistorico($this->tabela, $id, ['situacao' => 'ativo'], ['situacao' => 'inativo'], $usuarioId);
+        }
+
+        return $ok;
     }
 
-    public function reativar(int $id): bool {
-        return $this->bd->prepare(
+    public function reativar(int $id, ?int $usuarioId = null): bool {
+        $ok = $this->bd->prepare(
             "UPDATE {$this->tabela} SET situacao = 'ativo', atualizado_em = NOW() WHERE id = :id"
         )->execute([':id' => $id]);
+
+        if ($ok && $usuarioId) {
+            $this->registrarHistorico($this->tabela, $id, ['situacao' => 'inativo'], ['situacao' => 'ativo'], $usuarioId);
+        }
+
+        return $ok;
     }
 
-    protected function registrarHistorico(string $tabela, int $registroId, array $anterior, array $novo, int $usuarioId): void {
-        $evento = empty($anterior) ? 'criação' : 'edição';
+    protected function registrarHistorico(string $tabela, int $registroId, array $anterior, array $novo, int $usuarioId, ?string $eventoPersonalizado = null): void {
+        if ($eventoPersonalizado) {
+            $evento = $eventoPersonalizado;
+        } else {
+            $evento = empty($anterior) ? 'criação' : 'edição';
+        }
+        
         $detalhes = [];
         if (!empty($anterior)) {
             foreach ($novo as $campo => $valor) {
@@ -39,7 +56,15 @@ abstract class ModeloBase {
                     $detalhes[] = "Campo '$campo' alterado de '{$anterior[$campo]}' para '$valor'";
                 }
             }
+        } else if ($eventoPersonalizado) {
+            foreach ($novo as $campo => $valor) {
+                // Ignore complex arrays like 'itens' for simple log string
+                if (!is_array($valor)) {
+                    $detalhes[] = ucfirst($campo) . " definido como '$valor'";
+                }
+            }
         }
+        
         $detalhesStr = empty($detalhes) ? 'Sem detalhes' : implode('; ', $detalhes);
         
         $this->bd->prepare("
@@ -52,5 +77,30 @@ abstract class ModeloBase {
             ':evento'      => $evento,
             ':detalhes'    => $detalhesStr
         ]);
+    }
+
+    protected static function formatarStatus(string $status): string {
+        $mapa = [
+            'aberto' => 'Aberto',
+            'aberto' => 'Aberto',
+            'autorizado' => 'Autorizado',
+            'autorizado' => 'Autorizado',
+            'em_cotacao' => 'Em Cotação',
+            'fechada' => 'Fechado',
+            'fechado' => 'Fechado',
+            'enviado' => 'Enviado',
+            'enviado' => 'Enviado',
+            'parcialmente_atendido' => 'Parcialmente Atendido',
+            'parcialmente_atendido' => 'Parcialmente Atendido',
+            'concluido' => 'Concluído',
+            'concluido' => 'Concluído',
+            'cancelado' => 'Cancelado',
+            'cancelado' => 'Cancelado',
+            'recusada' => 'Recusado',
+            'recusado' => 'Recusado',
+            'registrada' => 'Registrado',
+            'vinculada' => 'Vinculado'
+        ];
+        return $mapa[strtolower($status)] ?? ucfirst(str_replace('_', ' ', $status));
     }
 }

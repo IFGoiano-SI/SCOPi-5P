@@ -27,7 +27,7 @@ class Database
   private function setConnection()
   {
     try {
-      $this->connection = new PDO('mysql:host=' . HOST . ';dbname=' . NAME . ';port=' . PORT, USER, PASS);
+      $this->connection = new PDO('mysql:host=' . HOST . ';dbname=' . NAME . ';port=' . PORT . ';charset=utf8mb4', USER, PASS);
       $this->connection->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     } catch (PDOException $e) {
       throw $e;

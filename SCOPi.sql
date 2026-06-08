@@ -2,26 +2,11 @@
 -- SCOPi — Estrutura do Banco de Dados
 -- Sistema de Compras e Orçamentos de Produtos Inteligente
 -- ============================================================
--- Execute este script no seu MySQL/MariaDB:
--- mysql -u root -p < sql.sql
--- ============================================================
 
 CREATE DATABASE IF NOT EXISTS scopi CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE scopi;
 
 SET FOREIGN_KEY_CHECKS = 0;
-
--- ── Departamentos (RF04) ──────────────────────────────────
-CREATE TABLE IF NOT EXISTS departamentos (
-    id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    nome         VARCHAR(120)  NOT NULL,
-    codigo       VARCHAR(20)   NOT NULL UNIQUE,
-    gerente_id   INT UNSIGNED  NULL,
-    situacao     ENUM('ativo','inativo') NOT NULL DEFAULT 'ativo',
-    criado_em    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    atualizado_em DATETIME     NULL ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_situacao (situacao)
-) ENGINE=InnoDB;
 
 -- ── Usuários (RF03) ───────────────────────────────────────
 CREATE TABLE IF NOT EXISTS usuarios (
@@ -40,8 +25,20 @@ CREATE TABLE IF NOT EXISTS usuarios (
     atualizado_em    DATETIME     NULL ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_email    (email),
     INDEX idx_situacao (situacao),
-    INDEX idx_perfil   (perfil),
-    CONSTRAINT fk_usuario_departamento FOREIGN KEY (departamento_id) REFERENCES departamentos(id) ON DELETE SET NULL
+    INDEX idx_perfil   (perfil)
+) ENGINE=InnoDB;
+
+-- ── Departamentos (RF04) ──────────────────────────────────
+CREATE TABLE IF NOT EXISTS departamentos (
+    id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    nome         VARCHAR(120)  NOT NULL,
+    codigo       VARCHAR(20)   NOT NULL UNIQUE,
+    gerente_id   INT UNSIGNED  NULL,
+    situacao     ENUM('ativo','inativo') NOT NULL DEFAULT 'ativo',
+    criado_em    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME     NULL ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_situacao (situacao),
+    CONSTRAINT fk_departamento_gerente FOREIGN KEY (gerente_id) REFERENCES usuarios(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- ── Recuperação de Senha (RF01) ───────────────────────────
@@ -52,11 +49,6 @@ CREATE TABLE IF NOT EXISTS recuperacao_senha (
     expira_em  DATETIME NOT NULL,
     CONSTRAINT fk_rec_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
-
--- Agora atribui gerente_id como FK após criar usuários
-ALTER TABLE departamentos
-    ADD CONSTRAINT fk_departamento_gerente
-    FOREIGN KEY (gerente_id) REFERENCES usuarios(id) ON DELETE SET NULL;
 
 -- ── Tabelas Geográficas para Endereços (RF06) ──────────────
 CREATE TABLE IF NOT EXISTS paises (
@@ -151,7 +143,7 @@ CREATE TABLE IF NOT EXISTS solicitacoes (
     usuario_id       INT UNSIGNED NOT NULL,
     gerente_id       INT UNSIGNED NULL,
     justificativa    TEXT         NOT NULL,
-    status           ENUM('em_aberto','autorizada','em_cotacao','recusada','concluida','cancelada') NOT NULL DEFAULT 'em_aberto',
+    status           ENUM('aberto','autorizado','em_cotacao','concluido','cancelado') NOT NULL DEFAULT 'aberto',
     autorizado_em    DATETIME     NULL,
     criado_em        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     atualizado_em    DATETIME     NULL ON UPDATE CURRENT_TIMESTAMP,
@@ -166,9 +158,11 @@ CREATE TABLE IF NOT EXISTS solicitacoes (
 CREATE TABLE IF NOT EXISTS solicitacao_itens (
     id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     solicitacao_id  INT UNSIGNED NOT NULL,
+    numero_item     INT UNSIGNED NOT NULL COMMENT 'Número sequencial do item na solicitação',
     produto_id      INT UNSIGNED NOT NULL,
     quantidade      DECIMAL(10,2) NOT NULL DEFAULT 1,
     observacao      TEXT          NULL,
+    status          ENUM('aberto','autorizado','em_cotacao','concluido','cancelado') NOT NULL DEFAULT 'aberto' COMMENT 'Segue os mesmos status da solicitação',
     CONSTRAINT fk_si_solicitacao FOREIGN KEY (solicitacao_id) REFERENCES solicitacoes(id) ON DELETE CASCADE,
     CONSTRAINT fk_si_produto     FOREIGN KEY (produto_id)     REFERENCES produtos(id)
 ) ENGINE=InnoDB;
@@ -191,54 +185,73 @@ CREATE TABLE IF NOT EXISTS cotacoes (
     CONSTRAINT fk_cot_usuario     FOREIGN KEY (usuario_id)     REFERENCES usuarios(id)
 ) ENGINE=InnoDB;
 
+-- ── Condições de Pagamento ────────────────────────
+CREATE TABLE IF NOT EXISTS condicoes_pagamento (
+    id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    codigo       CHAR(2)       NOT NULL UNIQUE,
+    descricao    VARCHAR(150)  NOT NULL,
+    situacao     ENUM('ativo','inativo') NOT NULL DEFAULT 'ativo',
+    criado_em    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME     NULL ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_situacao (situacao)
+) ENGINE=InnoDB;
+
 -- ── Itens da Cotação ──────────────────────────────────────
 CREATE TABLE IF NOT EXISTS cotacao_itens (
     id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    cotacao_id      INT UNSIGNED  NOT NULL,
-    produto_id      INT UNSIGNED  NOT NULL,
-    quantidade      DECIMAL(10,2) NOT NULL,
-    CONSTRAINT fk_ci_cotacao  FOREIGN KEY (cotacao_id)  REFERENCES cotacoes(id) ON DELETE CASCADE,
-    CONSTRAINT fk_ci_produto  FOREIGN KEY (produto_id)  REFERENCES produtos(id)
+    cotacao_id      INT UNSIGNED NOT NULL,
+    numero_item     INT UNSIGNED NOT NULL COMMENT 'Número sequencial do item na cotação',
+    solicitacao_item_id INT UNSIGNED NULL,
+    produto_id      INT UNSIGNED NOT NULL,
+    quantidade      DECIMAL(10,2) NOT NULL DEFAULT 1,
+    preco_unitario  DECIMAL(10,2) NULL,
+    prazo_entrega   VARCHAR(100)  NULL COMMENT 'Prazo de entrega específico para este item (sugestão)',
+    condicao_pagamento_id INT UNSIGNED NULL COMMENT 'Condição de pagamento sugerida para este item',
+    CONSTRAINT fk_ci_cotacao FOREIGN KEY (cotacao_id) REFERENCES cotacoes(id) ON DELETE CASCADE,
+    CONSTRAINT fk_ci_produto FOREIGN KEY (produto_id) REFERENCES produtos(id),
+    CONSTRAINT fk_ci_cond_pag FOREIGN KEY (condicao_pagamento_id) REFERENCES condicoes_pagamento(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- ── Convites de cotação para fornecedores (RF10/RF11) ─────
 -- Cada fornecedor recebe um token único para responder à cotação
+-- Dados globais da resposta do fornecedor para toda a cotação
 CREATE TABLE IF NOT EXISTS cotacao_fornecedores (
-    id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    cotacao_id      INT UNSIGNED  NOT NULL,
-    fornecedor_id   INT UNSIGNED  NOT NULL,
-    token           VARCHAR(64)   NOT NULL UNIQUE,
-    status          ENUM('pendente','visualizado','respondido','recusado') NOT NULL DEFAULT 'pendente',
-    enviado_em      DATETIME      NULL,
-    respondido_em   DATETIME      NULL,
-    modalidade_frete VARCHAR(100)  NULL,
-    transportadora  VARCHAR(150)  NULL,
-    condicao_pagamento VARCHAR(150) NULL,
-    impostos        DECIMAL(12,2) NULL DEFAULT 0.00,
-    taxas_adicionais DECIMAL(12,2) NULL DEFAULT 0.00,
-    validade_proposta DATE         NULL,
-    garantia        VARCHAR(250)  NULL,
-    prazo_entrega   INT           NULL COMMENT 'dias',
-    observacao      TEXT          NULL,
-    vencedora       TINYINT(1)    NOT NULL DEFAULT 0,
+    id                  INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    cotacao_id          INT UNSIGNED  NOT NULL,
+    fornecedor_id       INT UNSIGNED  NOT NULL,
+    token               VARCHAR(64)   NOT NULL UNIQUE,
+    status              ENUM('pendente','visualizado','respondido','recusado') NOT NULL DEFAULT 'pendente',
+    enviado_em          DATETIME      NULL,
+    respondido_em       DATETIME      NULL,
+    transportadora      VARCHAR(150)  NULL COMMENT 'Transportadora oferecida globalmente pelo fornecedor',
+    cnpj_transportadora VARCHAR(18)   NULL COMMENT 'CNPJ da transportadora',
+    modalidade_frete    VARCHAR(100)  NULL COMMENT 'CIF ou FOB - global para toda a cotação',
+    observacao          TEXT          NULL COMMENT 'Observação geral do fornecedor',
+    numero_envio        INT UNSIGNED  NOT NULL DEFAULT 0 COMMENT 'Contador de quantas vezes o fornecedor enviou resposta',
+    vencedora           TINYINT(1)    NOT NULL DEFAULT 0,
     CONSTRAINT fk_cf_cotacao    FOREIGN KEY (cotacao_id)    REFERENCES cotacoes(id)    ON DELETE CASCADE,
     CONSTRAINT fk_cf_fornecedor FOREIGN KEY (fornecedor_id) REFERENCES fornecedores(id),
     UNIQUE KEY uk_cot_forn (cotacao_id, fornecedor_id)
 ) ENGINE=InnoDB;
 
 -- ── Propostas dos fornecedores (RF12) ─────────────────────
+-- Respostas POR ITEM da cotação (um fornecedor responde com múltiplas propostas, uma por item)
 CREATE TABLE IF NOT EXISTS cotacao_propostas (
     id                    INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     cotacao_fornecedor_id INT UNSIGNED  NOT NULL,
     produto_id            INT UNSIGNED  NOT NULL,
-    modelo                VARCHAR(200)  NULL,
-    quantidade            DECIMAL(10,2) NOT NULL,
-    preco_unitario        DECIMAL(12,4) NOT NULL,
-    prazo_entrega         INT           NULL COMMENT 'dias',
+    modelo                VARCHAR(200)  NULL COMMENT 'Modelo/variação do produto oferecido',
+    quantidade            DECIMAL(10,2) NOT NULL COMMENT 'Quantidade respondida para este item',
+    preco_unitario        DECIMAL(12,4) NOT NULL COMMENT 'Preço unitário para este item',
+    prazo_entrega         DATE          NULL COMMENT 'Data prevista de entrega para este item',
+    condicao_pagamento_id INT UNSIGNED  NULL COMMENT 'Condição de pagamento selecionada para este item',
+    taxas                 DECIMAL(12,2) NULL DEFAULT 0.00 COMMENT 'Taxas/impostos adicionais para este item',
+    garantia              VARCHAR(250)  NULL COMMENT 'Garantia oferecida para este item',
     disponivel            TINYINT(1)    NOT NULL DEFAULT 1 COMMENT '0 = fornecedor não possui o item',
-    observacao            TEXT          NULL,
+    observacao            TEXT          NULL COMMENT 'Observação específica do fornecedor para este item',
     CONSTRAINT fk_cp_cf      FOREIGN KEY (cotacao_fornecedor_id) REFERENCES cotacao_fornecedores(id) ON DELETE CASCADE,
-    CONSTRAINT fk_cp_produto FOREIGN KEY (produto_id)            REFERENCES produtos(id)
+    CONSTRAINT fk_cp_produto FOREIGN KEY (produto_id)            REFERENCES produtos(id),
+    CONSTRAINT fk_cp_cond_pag FOREIGN KEY (condicao_pagamento_id) REFERENCES condicoes_pagamento(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- ── Ordens de Compra (RF13) ───────────────────────────────
@@ -251,11 +264,11 @@ CREATE TABLE IF NOT EXISTS ordens_compra (
     fornecedor_id         INT UNSIGNED  NOT NULL,
     usuario_id            INT UNSIGNED  NOT NULL,
     aprovador_id          INT UNSIGNED  NULL,
-    condicao_pagamento    VARCHAR(150)  NULL,
     modalidade_frete      VARCHAR(100)  NULL,
-    prazo_entrega         VARCHAR(50)   NULL,
+    transportadora        VARCHAR(150)  NULL,
+    cnpj_transportadora   VARCHAR(18)   NULL,
     valor_total           DECIMAL(14,2) NOT NULL DEFAULT 0,
-    status                ENUM('aberta','autorizada','enviada','parcialmente_atendida','concluida','cancelada') NOT NULL DEFAULT 'aberta',
+    status                ENUM('aberto','autorizado','enviado','parcialmente_atendido','concluido','cancelado') NOT NULL DEFAULT 'aberto',
     emitido_em            DATE          NULL,
     autorizado_em         DATETIME      NULL,
     enviado_em            DATETIME      NULL,
@@ -275,14 +288,20 @@ CREATE TABLE IF NOT EXISTS ordens_compra (
 CREATE TABLE IF NOT EXISTS ordem_compra_itens (
     id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     ordem_id        INT UNSIGNED  NOT NULL,
+    numero_item     INT UNSIGNED  NOT NULL COMMENT 'Número sequencial do item na ordem',
+    solicitacao_item_id INT UNSIGNED NULL,
     produto_id      INT UNSIGNED  NOT NULL,
     quantidade      DECIMAL(10,2) NOT NULL,
     preco_unitario  DECIMAL(12,4) NOT NULL,
     subtotal        DECIMAL(14,2) GENERATED ALWAYS AS (quantidade * preco_unitario) STORED,
+    condicao_pagamento_id INT UNSIGNED NULL COMMENT 'FK para condicoes_pagamento confirmada',
+    prazo_entrega   DATE          NULL COMMENT 'Data de entrega prevista para este item',
     quantidade_atendida DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT 'Quantidade já recebida via NF',
-    status_item     ENUM('pendente','parcial','atendido','cancelado') NOT NULL DEFAULT 'pendente',
+    status          ENUM('aberto','autorizado','enviado','parcialmente_atendido','concluido','cancelado') NOT NULL DEFAULT 'aberto' COMMENT 'Segue os mesmos status da ordem de compra',
     CONSTRAINT fk_oci_ordem   FOREIGN KEY (ordem_id)   REFERENCES ordens_compra(id) ON DELETE CASCADE,
-    CONSTRAINT fk_oci_produto FOREIGN KEY (produto_id) REFERENCES produtos(id)
+    CONSTRAINT fk_oci_produto FOREIGN KEY (produto_id) REFERENCES produtos(id),
+    CONSTRAINT fk_oci_solic_item FOREIGN KEY (solicitacao_item_id) REFERENCES solicitacao_itens(id) ON DELETE SET NULL,
+    CONSTRAINT fk_oci_cond_pag FOREIGN KEY (condicao_pagamento_id) REFERENCES condicoes_pagamento(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- ── Notas Fiscais (RF14) ──────────────────────────────────
@@ -300,7 +319,7 @@ CREATE TABLE IF NOT EXISTS notas_fiscais (
     transportadora    VARCHAR(150)  NULL,
     peso              DECIMAL(12,4) NULL,
     valor_produtos    DECIMAL(14,2) NOT NULL DEFAULT 0,
-    valor_frete       DECIMAL(12,2) NULL DEFAULT 0,
+
     valor_desconto    DECIMAL(12,2) NULL DEFAULT 0,
     valor_impostos    DECIMAL(12,2) NULL DEFAULT 0,
     taxas_adicionais  DECIMAL(12,2) NULL DEFAULT 0,
@@ -338,8 +357,11 @@ CREATE TABLE IF NOT EXISTS nota_fiscal_itens (
     preco_unitario DECIMAL(12,4) NOT NULL,
     subtotal       DECIMAL(14,2) NOT NULL,
     ncm            VARCHAR(10)   NULL,
+    ordem_compra_item_id INT UNSIGNED NULL,
+    numero_item_pedido VARCHAR(50) NULL COMMENT 'nItemPed do XML',
     CONSTRAINT fk_nfi_nota    FOREIGN KEY (nota_id)    REFERENCES notas_fiscais(id) ON DELETE CASCADE,
-    CONSTRAINT fk_nfi_produto FOREIGN KEY (produto_id) REFERENCES produtos(id) ON DELETE SET NULL
+    CONSTRAINT fk_nfi_produto FOREIGN KEY (produto_id) REFERENCES produtos(id) ON DELETE SET NULL,
+    CONSTRAINT fk_nfi_oci     FOREIGN KEY (ordem_compra_item_id) REFERENCES ordem_compra_itens(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- ── Notificações Internas (RF15) ──────────────────────────
@@ -363,7 +385,10 @@ CREATE TABLE IF NOT EXISTS historico_cadastros (
     entidade_id INT UNSIGNED NOT NULL,
     usuario_id INT UNSIGNED NOT NULL,
     evento VARCHAR(50) NOT NULL,
-    detalhes TEXT NULL,
+    campo_alterado VARCHAR(100) NULL COMMENT 'Campo que foi alterado (em caso de edição)',
+    valor_anterior TEXT NULL COMMENT 'Valor antes da alteração',
+    valor_atual TEXT NULL COMMENT 'Valor depois da alteração',
+    detalhes TEXT NULL COMMENT 'Detalhes adicionais da ação',
     data_hora DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_entidade (entidade, entidade_id),
     INDEX idx_usuario_id (usuario_id),
@@ -372,17 +397,20 @@ CREATE TABLE IF NOT EXISTS historico_cadastros (
 
 SET FOREIGN_KEY_CHECKS = 1;
 
+-- Migração: adicionar coluna detalhes caso o banco já exista sem ela
+-- ALTER TABLE historico_cadastros ADD COLUMN IF NOT EXISTS detalhes TEXT NULL COMMENT 'Detalhes adicionais da ação' AFTER valor_atual;
+
 -- ============================================================
 -- DADOS INICIAIS
 -- ============================================================
 
 -- Departamentos padrão
 INSERT INTO departamentos (nome, codigo, situacao) VALUES
-    ('Administração', 'DEP-ADMIN', 'ativo'),
-    ('Compras',       'DEP-COMP',  'ativo'),
-    ('Financeiro',    'DEP-FIN',   'ativo'),
-    ('Contabilidade', 'DEP-CONT',  'ativo'),
-    ('Operações',     'DEP-OPER',  'ativo');
+    ('Administração', 'dep0001', 'ativo'),
+    ('Compras',       'dep0002',  'ativo'),
+    ('Financeiro',    'dep0003',   'ativo'),
+    ('Contabilidade', 'dep0004',  'ativo'),
+    ('Operações',     'dep0005',  'ativo');
 
 -- Usuário administrador padrão
 -- Senha: admin@123 (hash bcrypt gerado pelo PHP)
@@ -390,21 +418,34 @@ INSERT INTO usuarios (nome, email, senha, matricula, departamento_id, perfil, si
     ('Administrador do Sistema',
      'admin@scopi.com',
      '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
-     'ADM-001',
+     '25000001',
      1,
      'administrador',
      'ativo');
 
--- Atualiza gerente do departamento admin
-UPDATE departamentos SET gerente_id = 1 WHERE codigo = 'DEP-ADMIN';
+-- Atualizar gerente_id do departamento de administração
+UPDATE departamentos SET gerente_id = 1 WHERE codigo = 'dep0001';
 
 -- Categorias de produto iniciais
-INSERT INTO categorias (nome, situacao) VALUES
-    ('Material de Escritório', 'ativo'),
-    ('Equipamentos de TI',     'ativo'),
-    ('Limpeza e Higiene',      'ativo'),
-    ('Manutenção',             'ativo'),
-    ('Outros',                 'ativo');
+INSERT INTO categorias (nome, codigo, situacao) VALUES
+    ('Material de Escritório', 'cat001', 'ativo'),
+    ('Equipamentos de TI',     'cat002', 'ativo'),
+    ('Limpeza e Higiene',      'cat003', 'ativo'),
+    ('Manutenção',             'cat004', 'ativo'),
+    ('Outros',                 'cat005', 'ativo');
+
+-- ── Condições de Pagamento iniciais ──────────────────────
+INSERT INTO condicoes_pagamento (codigo, descricao, situacao) VALUES
+    ('01', 'À Vista',                     'ativo'),
+    ('02', '30 dias',                     'ativo'),
+    ('03', '30/60 dias',                  'ativo'),
+    ('04', '30/60/90 dias',               'ativo'),
+    ('05', '28 dias (Boleto)',            'ativo'),
+    ('06', '28/56 dias (Boleto)',         'ativo'),
+    ('07', '28/56/84 dias (Boleto)',      'ativo'),
+    ('08', 'Antecipado',                  'ativo'),
+    ('09', '15 dias',                     'ativo'),
+    ('10', '7 dias',                      'ativo');
 
 -- ── Países ───────────────────────────────────────────────────
 INSERT INTO paises (nome, sigla_iso2, sigla_iso3) VALUES
@@ -472,30 +513,29 @@ INSERT INTO cidades (nome, estado_id) VALUES
 INSERT INTO usuarios (nome, email, senha, matricula, departamento_id, perfil, situacao) VALUES
     ('Carlos Eduardo Mendes',  'comprador@scopi.com',
      '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
-     'COMP-001', 2, 'comprador', 'ativo'),
+     '25000002', 2, 'comprador', 'ativo'),
 
     ('Fernanda Lima Oliveira', 'gerente@scopi.com',
      '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
-     'GER-001', 2, 'gerente', 'ativo'),
+     '25000003', 2, 'gerente', 'ativo'),
 
     ('Ricardo Souza Costa',    'cadastrador@scopi.com',
      '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
-     'CAD-001', 1, 'cadastrador', 'ativo'),
+     '25000004', 1, 'cadastrador', 'ativo'),
 
     ('Patrícia Alves Ramos',   'contabilidade@scopi.com',
      '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
-     'CONT-001', 4, 'contabilidade', 'ativo'),
+     '25000005', 4, 'contabilidade', 'ativo'),
 
     ('João Pedro Ferreira',    'joao.ferreira@scopi.com',
      '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
-     'USR-001', 5, 'usuario', 'ativo'),
+     '25000006', 5, 'usuario', 'ativo'),
 
     ('Ana Paula Martins',      'ana.martins@scopi.com',
      '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
-     'USR-002', 3, 'usuario', 'ativo');
+     '25000007', 3, 'usuario', 'ativo');
 
 -- Atualiza gerente do departamento de Compras
-UPDATE departamentos SET gerente_id = 3 WHERE codigo = 'DEP-COMP';
 
 -- ── Fornecedores ─────────────────────────────────────────────
 INSERT INTO fornecedores
@@ -507,43 +547,43 @@ VALUES
      '12.345.678/0001-90', '123.456.789.110',
      'Av. Industrial', '1500', 'Distrito Industrial', '01310-100', 1,
      'vendas@papermax.com.br', '(11) 3333-1000', 'Marcos Andrade',
-     'FORN-001', 'matriz', 'ativo'),
+     'forn000001', 'matriz', 'ativo'),
 
     ('Tech Solutions Informática S/A', 'TechSol',
      '23.456.789/0001-01', '234.567.890.220',
      'Rua dos Tecnólogos', '320', 'Centro', '04001-000', 1,
      'comercial@techsol.com.br', '(11) 4444-2000', 'Luciana Pires',
-     'FORN-002', 'matriz', 'ativo'),
+     'forn000002', 'matriz', 'ativo'),
 
     ('LimpPro Produtos de Limpeza Eireli', 'LimpPro',
      '34.567.890/0001-12', '345.678.901.330',
      'Rua das Flores', '80', 'Jardim América', '80010-030', 15,
      'contato@limppro.com.br', '(41) 5555-3000', 'Sandra Rocha',
-     'FORN-003', 'matriz', 'ativo'),
+     'forn000003', 'matriz', 'ativo'),
 
     ('Manutech Serviços e Equipamentos Ltda', 'Manutech',
      '45.678.901/0001-23', '456.789.012.440',
      'Av. das Máquinas', '950', 'Polo Industrial', '30110-000', 9,
      'orcamentos@manutech.com.br', '(31) 6666-4000', 'Roberto Dias',
-     'FORN-004', 'matriz', 'ativo'),
+     'forn000004', 'matriz', 'ativo'),
 
     ('Multisuprimentos Gerais Comércio Ltda', 'MultiSup',
      '56.789.012/0001-34', '567.890.123.550',
      'Rua Comércio Local', '200', 'Setor Comercial', '70070-010', 25,
      'vendas@multisup.com.br', '(61) 7777-5000', 'Camila Torres',
-     'FORN-005', 'matriz', 'ativo'),
+     'forn000005', 'matriz', 'ativo'),
 
     ('InfoTech Equipamentos e Suprimentos S/A', 'InfoTech',
      '67.890.123/0001-45', '678.901.234.660',
      'Av. Tecnologia', '1200', 'TechPark', '04309-010', 1,
      'vendas@infotech.com.br', '(11) 8888-6000', 'Felipe Nunes',
-     'FORN-006', 'filial', 'ativo'),
+     'forn000006', 'filial', 'ativo'),
 
     ('Sul Distribuidora de Materiais Ltda', 'SulMatérias',
      '78.901.234/0001-56', '789.012.345.770',
      'Rua 7 de Setembro', '450', 'Centro', '90010-190', 12,
      'comercial@sulmaterias.com.br', '(51) 9999-7000', 'Denise Vargas',
-     'FORN-007', 'matriz', 'ativo');
+     'forn000007', 'matriz', 'ativo');
 
 -- ── Fornecedor ↔ Categorias ──────────────────────────────────
 -- cat 1=Material de Escritório, 2=Equipamentos de TI,
@@ -560,26 +600,26 @@ INSERT INTO fornecedor_categorias (fornecedor_id, categoria_id) VALUES
 -- ── Produtos ─────────────────────────────────────────────────
 INSERT INTO produtos (nome, descricao, codigo, categoria_id, situacao) VALUES
     -- Material de Escritório
-    ('Resma de Papel A4 500fls',           'Papel sulfite A4 75g/m², pacote com 500 folhas',                   'PROD-001', 1, 'ativo'),
-    ('Caneta Esferográfica Azul (cx 50un)','Caneta esferográfica ponta média, caixa com 50 unidades',          'PROD-002', 1, 'ativo'),
-    ('Grampeador Médio 26/6',              'Grampeador de mesa capacidade 30 folhas, grampo 26/6',             'PROD-003', 1, 'ativo'),
-    ('Pasta Arquivo com Aba Elástica A4',  'Pasta arquivo em cartão, fechamento elástico, formato A4',         'PROD-004', 1, 'ativo'),
-    ('Post-it 76x76mm (bloco 100fls)',     'Bloco de notas adesivas amarelas, 100 folhas',                     'PROD-005', 1, 'ativo'),
-    ('Marcador de Texto (cx 12)',          'Caneta marcador de texto, cores sortidas, caixa com 12',           'PROD-006', 1, 'ativo'),
+    ('Resma de Papel A4 500fls',           'Papel sulfite A4 75g/m², pacote com 500 folhas',                   'prod000001', 1, 'ativo'),
+    ('Caneta Esferográfica Azul (cx 50un)','Caneta esferográfica ponta média, caixa com 50 unidades',          'prod000002', 1, 'ativo'),
+    ('Grampeador Médio 26/6',              'Grampeador de mesa capacidade 30 folhas, grampo 26/6',             'prod000003', 1, 'ativo'),
+    ('Pasta Arquivo com Aba Elástica A4',  'Pasta arquivo em cartão, fechamento elástico, formato A4',         'prod000004', 1, 'ativo'),
+    ('Post-it 76x76mm (bloco 100fls)',     'Bloco de notas adesivas amarelas, 100 folhas',                     'prod000005', 1, 'ativo'),
+    ('Marcador de Texto (cx 12)',          'Caneta marcador de texto, cores sortidas, caixa com 12',           'prod000006', 1, 'ativo'),
     -- Equipamentos de TI
-    ('Monitor LED 24" Full HD',            'Monitor 24 pol., resolução 1920x1080, HDMI/VGA',                   'PROD-007', 2, 'ativo'),
-    ('Teclado USB ABNT2',                  'Teclado USB padrão ABNT2, com fio',                                'PROD-008', 2, 'ativo'),
-    ('Mouse Óptico USB',                   'Mouse óptico com fio, 1000 DPI, 3 botões',                         'PROD-009', 2, 'ativo'),
-    ('Cartucho de Tinta Preta HP 664',     'Cartucho de tinta preta original HP série 664',                    'PROD-010', 2, 'ativo'),
-    ('Cabo HDMI 2m',                       'Cabo HDMI 2.0, 2 metros, com filtro anti-interferência',           'PROD-011', 2, 'ativo'),
-    ('Pendrive USB 3.0 32GB',              'Pendrive USB 3.0, capacidade 32 GB',                               'PROD-012', 2, 'ativo'),
+    ('Monitor LED 24" Full HD',            'Monitor 24 pol., resolução 1920x1080, HDMI/VGA',                   'prod000007', 2, 'ativo'),
+    ('Teclado USB ABNT2',                  'Teclado USB padrão ABNT2, com fio',                                'prod000008', 2, 'ativo'),
+    ('Mouse Óptico USB',                   'Mouse óptico com fio, 1000 DPI, 3 botões',                         'prod000009', 2, 'ativo'),
+    ('Cartucho de Tinta Preta HP 664',     'Cartucho de tinta preta original HP série 664',                    'prod000010', 2, 'ativo'),
+    ('Cabo HDMI 2m',                       'Cabo HDMI 2.0, 2 metros, com filtro anti-interferência',           'prod000011', 2, 'ativo'),
+    ('Pendrive USB 3.0 32GB',              'Pendrive USB 3.0, capacidade 32 GB',                               'prod000012', 2, 'ativo'),
     -- Limpeza e Higiene
-    ('Detergente Líquido 500ml (fardo 24)','Detergente neutro 500ml, fardo com 24 unidades',                   'PROD-013', 3, 'ativo'),
-    ('Papel Toalha Interfolha (pct 1000)', 'Papel toalha interfolha branco, 2 dobras, 1000 folhas',            'PROD-014', 3, 'ativo'),
-    ('Álcool 70% Líquido 1L',              'Álcool etílico hidratado 70% INPM, frasco 1 litro',                'PROD-015', 3, 'ativo'),
-    ('Saco de Lixo 100L (rolo 10un)',      'Saco plástico para lixo preto 100 litros, rolo com 10',            'PROD-016', 3, 'ativo'),
+    ('Detergente Líquido 500ml (fardo 24)','Detergente neutro 500ml, fardo com 24 unidades',                   'prod000013', 3, 'ativo'),
+    ('Papel Toalha Interfolha (pct 1000)', 'Papel toalha interfolha branco, 2 dobras, 1000 folhas',            'prod000014', 3, 'ativo'),
+    ('Álcool 70% Líquido 1L',              'Álcool etílico hidratado 70% INPM, frasco 1 litro',                'prod000015', 3, 'ativo'),
+    ('Saco de Lixo 100L (rolo 10un)',      'Saco plástico para lixo preto 100 litros, rolo com 10',            'prod000016', 3, 'ativo'),
     -- Manutenção
-    ('Lâmpada LED Tubular 20W',            'Lâmpada LED tubular T8 20W bivolt',                                'PROD-017', 4, 'ativo'),
-    ('Tomada 2P+T 10A',                    'Tomada elétrica 2 pinos + terra 10A padrão NBR 14136',             'PROD-018', 4, 'ativo'),
-    ('Fita Isolante 20m',                  'Fita isolante PVC 20 metros, 70°C',                                'PROD-019', 4, 'ativo'),
-    ('Pilha Alcalina AA (cx 24un)',         'Pilha alcalina tipo AA 1,5V, caixa com 24 unidades',               'PROD-020', 4, 'ativo');
+    ('Lâmpada LED Tubular 20W',            'Lâmpada LED tubular T8 20W bivolt',                                'prod000017', 4, 'ativo'),
+    ('Tomada 2P+T 10A',                    'Tomada elétrica 2 pinos + terra 10A padrão NBR 14136',             'prod000018', 4, 'ativo'),
+    ('Fita Isolante 20m',                  'Fita isolante PVC 20 metros, 70°C',                                'prod000019', 4, 'ativo'),
+    ('Pilha Alcalina AA (cx 24un)',         'Pilha alcalina tipo AA 1,5V, caixa com 24 unidades',               'prod000020', 4, 'ativo');

@@ -2,3 +2,5 @@
 *.log
 .comandos-git
 /-Documentação-
+*.md
+.claude/
