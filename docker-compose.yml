@@ -1,0 +1,90 @@
+version: "3.8"
+
+services:
+  # ==========================================
+  # Servidor Web / Proxy Reverso (Nginx)
+  # ==========================================
+  nginx:
+    image: nginx:alpine
+    container_name: nginx_server
+    restart: unless-stopped
+    ports:
+      - "8050:80"  # Expõe a aplicação na porta 8050
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - apache
+    networks:
+      - app_net
+
+  # ==========================================
+  # Servidor de Aplicação (Apache + PHP 8.2)
+  # ==========================================
+  apache:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: apache_server
+    restart: unless-stopped
+    expose:
+      - "80"
+    volumes:
+      - .:/var/www/html
+      - nfs_uploads:/var/www/html/public/uploads # Volume nativo para uploads (simulando NFS)
+    working_dir: /var/www/html
+    depends_on:
+      - mysql
+    networks:
+      - app_net
+
+  # ==========================================
+  # Banco de Dados (MySQL 8.0)
+  # ==========================================
+  mysql:
+    image: mysql:8.0
+    container_name: mysql_server
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: scopi  # Banco padrão configurado no .env da aplicação
+      MYSQL_USER: aluno
+      MYSQL_PASSWORD: "123456"
+    ports:
+      - "3356:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # Script SQL de inicialização automática das tabelas e dados
+      - ./SCOPi.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - app_net
+
+  # ==========================================
+  # Interface Administrativa do Banco (phpMyAdmin)
+  # ==========================================
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: phpmyadmin_server
+    restart: unless-stopped
+    ports:
+      - "8051:80"
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_ARBITRARY: 1
+    depends_on:
+      - mysql
+    networks:
+      - app_net
+
+volumes:
+  mysql_data:
+  nfs_uploads: # Volume nativo do Docker para simulação de armazenamento (NFS) de uploads
+
+networks:
+  app_net:

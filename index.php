@@ -17,6 +17,12 @@ if (file_exists(__DIR__ . '/.env')) {
         list($name, $value) = explode('=', $line, 2);
         $name = trim($name);
         $value = trim($value);
+        
+        // Remove ponto e vírgula no final se houver (evita erros se copiado como código PHP)
+        if (str_ends_with($value, ';')) {
+            $value = rtrim(substr($value, 0, -1));
+        }
+        
         if ((str_starts_with($value, '"') && str_ends_with($value, '"')) || (str_starts_with($value, "'") && str_ends_with($value, "'"))) {
             $value = substr($value, 1, -1);
         }
