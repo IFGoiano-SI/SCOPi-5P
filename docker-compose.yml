@@ -6,7 +6,7 @@ services:
   # ==========================================
   nginx:
     image: nginx:alpine
-    container_name: nginx_server
+    container_name: scopi_nginx_server  # Nome único para evitar conflito com outros projetos
     restart: unless-stopped
     ports:
       - "8050:80"  # Expõe a aplicação na porta 8050
@@ -24,7 +24,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: apache_server
+    container_name: scopi_apache_server  # Nome único para evitar conflito
     restart: unless-stopped
     expose:
       - "80"
@@ -42,7 +42,7 @@ services:
   # ==========================================
   mysql:
     image: mysql:8.0
-    container_name: mysql_server
+    container_name: scopi_mysql_server  # Nome único para evitar conflito
     restart: unless-stopped
     command: --default-authentication-plugin=mysql_native_password
     environment:
@@ -69,7 +69,7 @@ services:
   # ==========================================
   phpmyadmin:
     image: phpmyadmin/phpmyadmin:latest
-    container_name: phpmyadmin_server
+    container_name: scopi_phpmyadmin_server  # Nome único para evitar conflito
     restart: unless-stopped
     ports:
       - "8051:80"
