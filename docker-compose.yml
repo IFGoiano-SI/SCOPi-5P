@@ -50,8 +50,6 @@ services:
       MYSQL_DATABASE: scopi  # Banco padrão configurado no .env da aplicação
       MYSQL_USER: aluno
       MYSQL_PASSWORD: "123456"
-    ports:
-      - "3356:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       # Script SQL de inicialização automática das tabelas e dados
