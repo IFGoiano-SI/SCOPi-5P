@@ -79,9 +79,11 @@ use Config\Auxiliares;
             <td><?= ucfirst(Auxiliares::escapar($u['perfil'])) ?></td>
             <td><span class="badge badge-<?= $u['situacao'] ?>"><?= ucfirst($u['situacao']) ?></span></td>
             <td class="coluna-acoes">
+              <?php if (($usuario['perfil'] ?? '') === 'administrador'): ?>
               <button class="btn-icone btn-editar-linha" onclick="Scopi.abrirRegistro('modalUsuario','formUsuario','/usuarios/dados',<?= $u['id'] ?>,'editar')" title="Editar">
                 <img src="<?= BASE_URL ?>/public/assets/icons/iconeEditar.svg" alt="Editar">
               </button>
+              <?php endif; ?>
             </td>
           </tr>
         <?php endforeach; ?>
@@ -109,7 +111,9 @@ use Config\Auxiliares;
     </div>
     <div class="modal-abas">
       <button class="aba-btn ativa" data-aba="visualizar" onclick="Scopi.ativarAba('modalUsuario','visualizar')">Visualizar</button>
+      <?php if (($usuario['perfil'] ?? '') === 'administrador'): ?>
       <button class="aba-btn" data-aba="editar" onclick="Scopi.ativarAba('modalUsuario','editar')">Editar / Cadastrar</button>
+      <?php endif; ?>
     </div>
     <div class="modal-corpo">
 
@@ -238,11 +242,12 @@ function _ajustarRodapeUsuario(aba, situacao) {
     if (btnHistorico) btnHistorico.style.display = (_idAtual > 0) ? 'inline-flex' : 'none';
 
     if (aba === 'editar') {
-        if (btnRedefinir) btnRedefinir.style.display = (_idAtual > 0) ? 'inline-flex' : 'none';
-        if (blocoSenha)   blocoSenha.style.display   = 'block';
+        const isAdmin = (USER_PERFIL === 'administrador');
+        if (btnRedefinir) btnRedefinir.style.display = (_idAtual > 0 && isAdmin) ? 'inline-flex' : 'none';
+        if (blocoSenha)   blocoSenha.style.display   = isAdmin ? 'block' : 'none';
         const sit = (situacao || '').trim().toLowerCase();
-        if (btnInativar) btnInativar.style.display = (sit === 'ativo')   ? '' : 'none';
-        if (btnReativar) btnReativar.style.display = (sit === 'inativo') ? '' : 'none';
+        if (btnInativar) btnInativar.style.display = (sit === 'ativo' && isAdmin)   ? '' : 'none';
+        if (btnReativar) btnReativar.style.display = (sit === 'inativo' && isAdmin) ? '' : 'none';
     } else {
         if (btnInativar)  btnInativar.style.display  = 'none';
         if (btnReativar)  btnReativar.style.display  = 'none';

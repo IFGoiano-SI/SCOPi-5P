@@ -42,7 +42,24 @@ abstract class ModeloBase {
         return $ok;
     }
 
-    protected function registrarHistorico(string $tabela, int $registroId, array $anterior, array $novo, int $usuarioId, ?string $eventoPersonalizado = null): void {
+    /**
+     * Registra uma ação personalizada no histórico de auditoria.
+     */
+    public function registrarAcaoPersonalizada(string $tabela, int $registroId, int $usuarioId, string $evento, string $detalhes = ''): void {
+        $q = $this->bd->prepare("
+            INSERT INTO historico_cadastros (entidade, entidade_id, usuario_id, evento, detalhes, data_hora)
+            VALUES (:entidade, :entidade_id, :usuario_id, :evento, :detalhes, NOW())
+        ");
+        $q->execute([
+            ':entidade' => $tabela,
+            ':entidade_id' => $registroId,
+            ':usuario_id' => $usuarioId,
+            ':evento' => $evento,
+            ':detalhes' => $detalhes
+        ]);
+    }
+
+    public function registrarHistorico(string $tabela, int $registroId, array $anterior, array $novo, int $usuarioId, ?string $eventoPersonalizado = null): void {
         if ($eventoPersonalizado) {
             $evento = $eventoPersonalizado;
         } else {

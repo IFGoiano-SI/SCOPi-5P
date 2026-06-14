@@ -159,6 +159,10 @@ function subAberto(array $rotas, string $atual): bool {
     <div class="topbar-empresa">
       <span>Logo Contratante</span>
     </div>
+    <div class="topbar-titulo-area">
+      <div class="topbar-titulo-linha"></div>
+      <span class="topbar-titulo" id="topbarTitulo">SCOPi</span>
+    </div>
     <div class="topbar-direita">
       <button class="btn-notificacao" id="btnNotificacao" title="Notificações" onclick="Scopi.abrirNotificacoes()">
         <img src="<?= BASE_URL ?>/public/assets/icons/iconeNotificacao.svg" alt="Notificações">

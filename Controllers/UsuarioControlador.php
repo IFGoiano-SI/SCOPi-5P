@@ -143,6 +143,12 @@ class UsuarioControlador extends BaseController {
         } else {
             $this->json(false, 'Erro ao redefinir a senha.');
         }
+    }
+
+    public function exportar(): void {
+        Auxiliares::exigirPerfil('administrador', 'gerente');
+        $usuario = Auxiliares::usuarioLogado();
+        $filtros = $_GET;
         $departamentoId = ($usuario['perfil'] ?? '') === 'gerente' ? (int) $usuario['departamento_id'] : null;
         $usuarios = $this->modelo->listarComFiltros($filtros, $departamentoId);
 
@@ -156,7 +162,7 @@ class UsuarioControlador extends BaseController {
                 $u['email'],
                 $u['contato'],
                 ucfirst($u['perfil']),
-                $u['nome_departamento'],
+                $u['nome_departamento'] ?? '—',
                 ucfirst($u['situacao']),
                 date('d/m/Y H:i', strtotime($u['criado_em']))
             ];

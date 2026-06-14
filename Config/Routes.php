@@ -18,6 +18,7 @@ $routes = [
     '/usuarios/inativar' => ['UsuarioControlador', 'inativar'],
     '/usuarios/reativar' => ['UsuarioControlador', 'reativar'],
     '/usuarios/exportar' => ['UsuarioControlador', 'exportar'],
+    '/usuarios/redefinirSenha' => ['UsuarioControlador', 'redefinirSenha'],
     '/usuarios/consultar-matricula' => ['UsuarioControlador', 'consultarMatricula'],
 
     '/departamentos' => ['DepartamentoControlador', 'listar'],
