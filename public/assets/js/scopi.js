@@ -1,4 +1,4 @@
-﻿/**
+/**
  * scopi.js — JavaScript principal do SCOPi
  * Sidebar retrátil, submenus, modais AJAX, sistema de notificações
  */
@@ -27,6 +27,25 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.submenu .nav-link.ativo').forEach(l => {
     l.closest('.submenu')?.closest('.nav-item')?.classList.add('aberto');
   });
+
+  /* ════════════════════════════════════════════
+     AUTO-SUBMIT PARA TELAS INICIAIS (Filtros)
+     ════════════════════════════════════════════ */
+  const painelFiltrosForm = document.querySelector('.painel-filtros form');
+  if (painelFiltrosForm) {
+    // Esconde a div que contém o botão de Filtrar
+    const btnFiltrar = painelFiltrosForm.querySelector('.btn-filtrar');
+    if (btnFiltrar) {
+      btnFiltrar.parentElement.style.display = 'none';
+    }
+
+    // Auto-submit apenas quando o valor realmente muda (Enter, clicar fora, ou seleção no modal)
+    // Usamos event delegation para pegar selects, inputs e eventos change disparados via JS
+    painelFiltrosForm.addEventListener('change', (e) => {
+      // Pequeno delay para permitir que eventos onblur (como buscar nome do gerente) terminem antes do reload
+      setTimeout(() => painelFiltrosForm.submit(), 100);
+    });
+  }
 });
 
 /* Submenus */
@@ -97,7 +116,12 @@ const Scopi = {
     if(!el) return;
     el.classList.add('aberto');
     document.body.style.overflow = 'hidden';
-    el.addEventListener('click', e => { if(e.target===el) Scopi.fecharModal(id); }, {once:true});
+    // Listener para fechar ao clicar no overlay (fundo escuro)
+    // Registra apenas uma vez por modal usando um flag
+    if(!el._overlayClickRegistrado) {
+      el._overlayClickRegistrado = true;
+      el.addEventListener('click', e => { if(e.target === el) Scopi.fecharModal(id); });
+    }
   },
   fecharModal(id) {
     document.getElementById(id)?.classList.remove('aberto');
@@ -400,6 +424,13 @@ document.addEventListener('DOMContentLoaded', () => {
 let buscaGlobalAtual = { tabela: '', idCodigo: '', idNome: '', filtros: {}, contexto: '' };
 let pilhaBuscasAninhadas = []; // Histórico de buscas aninhadas para navegação
 
+// Debounce para busca automática nos filtros
+let _buscaFiltroTimer = null;
+function _debounceBuscaFiltro() {
+    clearTimeout(_buscaFiltroTimer);
+    _buscaFiltroTimer = setTimeout(() => Scopi.executarBuscaGlobal(), 400);
+}
+
 // Função para gerar filtros contextuais
 function gerarFiltrosBuscaGlobal(tabela, contexto = '') {
     // Esconder busca por termo quando há filtros específicos
@@ -410,12 +441,12 @@ function gerarFiltrosBuscaGlobal(tabela, contexto = '') {
 
     const criarCampo = (label, type = 'text', id, placeholder = '', onchange = '') => {
         const changeEvent = onchange || `buscaGlobalAtual.filtros['${id}'] = this.value`;
-        return `<div style="display:flex;flex-direction:column;"><label style="font-size:0.85rem;font-weight:500;margin-bottom:4px;">${label}</label><input type="${type}" id="filtro_${id}" placeholder="${placeholder}" onchange="${changeEvent}" style="width:100%;padding:6px;border:1px solid #E4D7EA;border-radius:4px;font-size:0.9rem;"></div>`;
+        return `<div style="display:flex;flex-direction:column;"><label style="font-size:0.85rem;font-weight:500;margin-bottom:4px;">${label}</label><input type="${type}" id="filtro_${id}" placeholder="${placeholder}" onchange="${changeEvent}" oninput="buscaGlobalAtual.filtros['${id}'] = this.value; _debounceBuscaFiltro()" style="width:100%;padding:6px;border:1px solid #E4D7EA;border-radius:4px;font-size:0.9rem;"></div>`;
     };
 
     const criarSelect = (label, id, options) => {
         const opts = options.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
-        const onchange = `buscaGlobalAtual.filtros['${id}'] = this.value`;
+        const onchange = `buscaGlobalAtual.filtros['${id}'] = this.value; Scopi.executarBuscaGlobal()`;
         return `<div style="display:flex;flex-direction:column;"><label style="font-size:0.85rem;font-weight:500;margin-bottom:4px;">${label}</label><select id="filtro_${id}" onchange="${onchange}" style="width:100%;padding:6px;border:1px solid #E4D7EA;border-radius:4px;font-size:0.9rem;">${opts}</select></div>`;
     };
 
@@ -423,7 +454,7 @@ function gerarFiltrosBuscaGlobal(tabela, contexto = '') {
         return `<div style="display:flex;flex-direction:column;">
                     <label style="font-size:0.85rem;font-weight:500;margin-bottom:4px;">${label}</label>
                     <div style="display:flex;gap:4px;">
-                        <input type="text" id="filtro_${id}_codigo" placeholder="Código..." onchange="buscaGlobalAtual.filtros['${id}'] = this.value" style="flex:1;padding:6px;border:1px solid #E4D7EA;border-radius:4px;font-size:0.9rem;">
+                        <input type="text" id="filtro_${id}_codigo" placeholder="Código..." onchange="buscaGlobalAtual.filtros['${id}'] = this.value" oninput="buscaGlobalAtual.filtros['${id}'] = this.value; _debounceBuscaFiltro()" style="flex:1;padding:6px;border:1px solid #E4D7EA;border-radius:4px;font-size:0.9rem;">
                         <button type="button" class="btn btn-primario" style="padding:4px 6px;font-size:0.8rem;" onclick="Scopi.iconeBuscaAninhada('${tabela}', 'filtro_${id}_codigo', '${idCampoVisualizacao}')"><img src="${Scopi.url('/public/assets/icons/iconeBusca.svg')}" style="width:13px;margin:0;" alt="Buscar"></button>
                     </div>
                     <span id="${idCampoVisualizacao}" style="font-size:0.85rem;color:#666;margin-top:4px;"></span>
@@ -563,7 +594,8 @@ Scopi.iconeBuscaAninhada = function(tabela, idCampoCodigo, idCampoVisualizacao) 
     htmlHead += '<th style="width:80px;"></th></tr>';
     document.getElementById('theadBuscaGlobal').innerHTML = htmlHead;
 
-    Scopi.abrirModal('modalBuscaGlobal');
+    // NÃO chamar abrirModal de novo — o modal já está aberto.
+    // Apenas focar no campo de busca.
     setTimeout(() => document.getElementById('inputBuscaGlobal').focus(), 100);
 };
 
@@ -608,8 +640,16 @@ Scopi.voltarBuscaAninhada = function() {
 Scopi.executarBuscaGlobal = async function() {
     const termo = document.getElementById('inputBuscaGlobal').value.trim();
     if (termo.length < 2 && termo !== '') {
-        alert('Digite pelo menos 2 caracteres para buscar.');
-        return;
+        return; // Termo muito curto, aguardar mais digitação
+    }
+
+    // Verificar se há pelo menos um filtro preenchido quando o termo está vazio
+    const temFiltro = Object.keys(buscaGlobalAtual.filtros).some(k => {
+        const v = buscaGlobalAtual.filtros[k];
+        return v && v !== '' && k !== 'status'; // ignora o filtro 'status: ativo' padrão
+    });
+    if (termo === '' && !temFiltro) {
+        return; // Sem termo e sem filtros, não buscar
     }
 
     const tbody = document.getElementById('tbodyBuscaGlobal');
@@ -666,15 +706,26 @@ Scopi.executarBuscaGlobal = async function() {
 };
 
 Scopi.selecionarBuscaGlobal = function(codigo, nome) {
-    const inputCod = document.getElementById(buscaGlobalAtual.idCodigo);
-    if(inputCod) {
-        inputCod.value = codigo;
-        inputCod.dispatchEvent(new Event('blur'));
-        inputCod.dispatchEvent(new Event('change'));
-    }
+    const isAninhada = buscaGlobalAtual.isAninhada;
+    const idCodigo = buscaGlobalAtual.idCodigo;
+    const idNome = buscaGlobalAtual.idNome;
 
-    if(buscaGlobalAtual.idNome) {
-        const elNome = document.getElementById(buscaGlobalAtual.idNome);
+    if (isAninhada && pilhaBuscasAninhadas.length > 0) {
+        // PRIMEIRO: restaurar a busca pai (recria os campos no DOM)
+        Scopi.voltarBuscaAninhada();
+
+        // DEPOIS: preencher os campos restaurados com o valor selecionado
+        const inputCod = document.getElementById(idCodigo);
+        if(inputCod) {
+            inputCod.value = codigo;
+            // Atualizar o filtro no objeto da busca pai
+            const match = idCodigo.match(/^filtro_(.+)_codigo$/);
+            if (match) {
+                buscaGlobalAtual.filtros[match[1]] = codigo;
+            }
+        }
+
+        const elNome = document.getElementById(idNome);
         if(elNome) {
             if(elNome.tagName === 'INPUT') {
                 elNome.value = nome;
@@ -683,9 +734,32 @@ Scopi.selecionarBuscaGlobal = function(codigo, nome) {
                 elNome.style.display = 'inline';
             }
         }
-    }
 
-    Scopi.fecharModal('modalBuscaGlobal');
+        // Re-executar a busca com o filtro atualizado
+        setTimeout(() => Scopi.executarBuscaGlobal(), 200);
+    } else {
+        // Busca normal (não aninhada) — preencher campos da página e fechar modal
+        const inputCod = document.getElementById(idCodigo);
+        if(inputCod) {
+            inputCod.value = codigo;
+            inputCod.dispatchEvent(new Event('blur'));
+            inputCod.dispatchEvent(new Event('change'));
+        }
+
+        if(idNome) {
+            const elNome = document.getElementById(idNome);
+            if(elNome) {
+                if(elNome.tagName === 'INPUT') {
+                    elNome.value = nome;
+                } else {
+                    elNome.textContent = nome;
+                    elNome.style.display = 'inline';
+                }
+            }
+        }
+
+        Scopi.fecharModal('modalBuscaGlobal');
+    }
 };
 
 Scopi.abrirHistorico = async function(entidade, entidadeId, tituloAmigavel = 'Histórico') {

@@ -85,8 +85,8 @@ class BuscaGlobalControlador extends BaseController {
         }
 
         if (!empty($filtros['departamento_id'] ?? '')) {
-            $sql .= " AND u.departamento_id = :depto_id";
-            $p[':depto_id'] = $filtros['departamento_id'];
+            $sql .= " AND u.departamento_id IN (SELECT id FROM departamentos WHERE codigo LIKE :depto_codigo)";
+            $p[':depto_codigo'] = "%{$filtros['departamento_id']}%";
         }
 
         if (!empty($filtros['perfil'] ?? '')) {
@@ -123,8 +123,8 @@ class BuscaGlobalControlador extends BaseController {
         }
 
         if (!empty($filtros['gerente_id'] ?? '')) {
-            $sql .= " AND gerente_id = :gerente_id";
-            $p[':gerente_id'] = $filtros['gerente_id'];
+            $sql .= " AND gerente_id IN (SELECT id FROM usuarios WHERE matricula LIKE :gerente_matricula)";
+            $p[':gerente_matricula'] = "%{$filtros['gerente_id']}%";
         }
 
         if (empty($filtros['codigo']) && empty($filtros['nome']) && !empty($termo)) {
@@ -210,8 +210,8 @@ class BuscaGlobalControlador extends BaseController {
         }
 
         if (!empty($filtros['categoria_id'] ?? '')) {
-            $sql .= " AND p.categoria_id = :cat_id";
-            $p[':cat_id'] = $filtros['categoria_id'];
+            $sql .= " AND p.categoria_id IN (SELECT id FROM categorias WHERE codigo LIKE :cat_codigo)";
+            $p[':cat_codigo'] = "%{$filtros['categoria_id']}%";
         }
 
         if (empty($filtros['codigo']) && empty($filtros['nome']) && !empty($termo)) {
@@ -253,8 +253,8 @@ class BuscaGlobalControlador extends BaseController {
         }
 
         if (!empty($filtros['categoria_id'] ?? '')) {
-            $sql .= " AND f.categoria_id = :cat_id";
-            $p[':cat_id'] = $filtros['categoria_id'];
+            $sql .= " AND f.categoria_id IN (SELECT id FROM categorias WHERE codigo LIKE :cat_codigo)";
+            $p[':cat_codigo'] = "%{$filtros['categoria_id']}%";
         }
 
         if (empty($filtros['codigo']) && empty($filtros['razao_social']) && empty($filtros['nome_fantasia']) && empty($filtros['cnpj']) && !empty($termo)) {
@@ -300,13 +300,13 @@ class BuscaGlobalControlador extends BaseController {
         }
 
         if (!empty($filtros['solicitacao_id'] ?? '')) {
-            $sql .= " AND c.solicitacao_id = :sol_id";
-            $p[':sol_id'] = $filtros['solicitacao_id'];
+            $sql .= " AND c.solicitacao_id IN (SELECT id FROM solicitacoes WHERE numero LIKE :sol_numero)";
+            $p[':sol_numero'] = "%{$filtros['solicitacao_id']}%";
         }
 
         if (!empty($filtros['usuario_id'] ?? '')) {
-            $sql .= " AND c.usuario_id = :user_id";
-            $p[':user_id'] = $filtros['usuario_id'];
+            $sql .= " AND c.usuario_id IN (SELECT id FROM usuarios WHERE matricula LIKE :user_matricula)";
+            $p[':user_matricula'] = "%{$filtros['usuario_id']}%";
         }
 
         if (empty($filtros['numero']) && !empty($termo)) {
