@@ -116,7 +116,8 @@ abstract class ModeloBase {
             'recusada' => 'Recusado',
             'recusado' => 'Recusado',
             'registrada' => 'Registrado',
-            'vinculada' => 'Vinculado'
+            'vinculada' => 'Vinculado',
+            'aprovado' => 'Aprovado'
         ];
         return $mapa[strtolower($status)] ?? ucfirst(str_replace('_', ' ', $status));
     }

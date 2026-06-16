@@ -194,11 +194,20 @@ class OrdemCompraControlador extends BaseController {
                 $fornecedor = $qF->fetch();
 
                 if ($fornecedor && !empty($fornecedor['email'])) {
+                    $tokenOC = $ordem['token'];
+                    if (empty($tokenOC)) {
+                        $tokenOC = bin2hex(random_bytes(32));
+                        $bd->prepare("UPDATE ordens_compra SET token = :token WHERE id = :id")->execute([':token' => $tokenOC, ':id' => $ordem['id']]);
+                    }
+                    $revisarUrl = base_url('login/fornecedor/ordem?token=' . $tokenOC);
+
                     $assunto = "Ordem de Compra {$ordem['numero']} - SCOPi";
                     $mensagem = "Prezado(a) {$fornecedor['razao_social']},\n\n";
                     $mensagem .= "Segue a ordem de compra {$ordem['numero']}.\n\n";
                     $mensagem .= "Valor total: R$ " . number_format((float)$ordem['valor_total'], 2, ',', '.') . "\n";
                     $mensagem .= "Prazo de entrega: {$ordem['prazo_entrega']}\n\n";
+                    $mensagem .= "Para revisar os detalhes e confirmar a aprovação/envio dos produtos, acesse o link abaixo:\n";
+                    $mensagem .= "{$revisarUrl}\n\n";
                     $mensagem .= "Atenciosamente,\nSCOPi";
 
                     Notificador::enviarEmail($fornecedor['email'], $assunto, $mensagem);

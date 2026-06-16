@@ -83,7 +83,7 @@ class CotacaoModelo extends ModeloBase {
 
             $q = $this->bd->prepare("
                 INSERT INTO cotacoes (numero, solicitacao_id, usuario_id, status, data_abertura, data_encerramento, criado_em)
-                VALUES (:num, NULL, :uid, 'aberto', :dta, :dte, NOW())
+                VALUES (:num, NULL, :uid, 'aberta', :dta, :dte, NOW())
             ");
             $q->execute([
                 ':num' => $numero,
@@ -93,8 +93,118 @@ class CotacaoModelo extends ModeloBase {
             ]);
             $cotacaoId = (int) $this->bd->lastInsertId();
 
-            $this->registrarHistorico($this->tabela, $cotacaoId, [], ['status' => 'aberto'], $usuarioId, 'abertura da cotação');
+            $this->registrarHistorico($this->tabela, $cotacaoId, [], ['status' => 'aberta'], $usuarioId, 'abertura da cotação');
             
+            $this->bd->commit();
+            return $cotacaoId;
+        } catch (\Exception $e) {
+            if ($this->bd->inTransaction()) {
+                $this->bd->rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    public function criarCompleta(int $usuarioId, int $solicitacaoId, string $dataAbertura, string $dataEncerramento, array $fornecedorIds): int {
+        try {
+            $this->bd->beginTransaction();
+
+            // 1. Gerar número sequencial da cotação
+            $qMax = $this->bd->prepare("SELECT MAX(CAST(SUBSTRING(numero, 4) AS UNSIGNED)) FROM cotacoes WHERE numero LIKE 'cot%'");
+            $qMax->execute();
+            $maxNum = (int)$qMax->fetchColumn() ?? 0;
+            $numero = 'cot' . str_pad($maxNum + 1, 5, '0', STR_PAD_LEFT);
+
+            // 2. Inserir a capa da cotação
+            $q = $this->bd->prepare("
+                INSERT INTO cotacoes (numero, solicitacao_id, usuario_id, status, data_abertura, data_encerramento, criado_em)
+                VALUES (:num, :sid, :uid, 'aberta', :dta, :dte, NOW())
+            ");
+            $q->execute([
+                ':num' => $numero,
+                ':sid' => $solicitacaoId,
+                ':uid' => $usuarioId,
+                ':dta' => $dataAbertura,
+                ':dte' => $dataEncerramento
+            ]);
+            $cotacaoId = (int)$this->bd->lastInsertId();
+
+            // 3. Buscar os itens da solicitação que estão 'aberto' ou 'autorizado' e não em cotação/concluídos
+            $qItensSol = $this->bd->prepare("
+                SELECT si.*, p.nome AS nome_produto, p.codigo AS codigo_produto
+                FROM solicitacao_itens si
+                JOIN produtos p ON p.id = si.produto_id
+                WHERE si.solicitacao_id = :sid AND si.status NOT IN ('em_cotacao', 'concluido', 'cancelado')
+            ");
+            $qItensSol->execute([':sid' => $solicitacaoId]);
+            $itensSol = $qItensSol->fetchAll();
+
+            if (empty($itensSol)) {
+                throw new \Exception("A solicitação não possui itens pendentes para cotação.");
+            }
+
+            // 4. Copiar os itens para cotacao_itens e atualizar o status em solicitacao_itens
+            $numeroItem = 1;
+            foreach ($itensSol as $item) {
+                $this->bd->prepare("
+                    INSERT INTO cotacao_itens (cotacao_id, numero_item, solicitacao_item_id, produto_id, quantidade)
+                    VALUES (:cid, :num, :sid, :pid, :qtd)
+                ")->execute([
+                    ':cid' => $cotacaoId,
+                    ':num' => $numeroItem,
+                    ':sid' => $item['id'],
+                    ':pid' => $item['produto_id'],
+                    ':qtd' => $item['quantidade']
+                ]);
+
+                $this->bd->prepare("UPDATE solicitacao_itens SET status = 'em_cotacao' WHERE id = :sid")
+                         ->execute([':sid' => $item['id']]);
+
+                $numeroItem++;
+            }
+
+            // 5. Atualizar o status da solicitação para em_cotacao
+            $this->bd->prepare("UPDATE solicitacoes SET status = 'em_cotacao' WHERE id = :sid")
+                     ->execute([':sid' => $solicitacaoId]);
+
+            // 6. Convidar os fornecedores selecionados
+            foreach ($fornecedorIds as $fornId) {
+                $token = bin2hex(random_bytes(32));
+                
+                $this->bd->prepare("
+                    INSERT INTO cotacao_fornecedores (cotacao_id, fornecedor_id, token, status, enviado_em)
+                    VALUES (:cid, :fid, :tok, 'pendente', NOW())
+                ")->execute([
+                    ':cid' => $cotacaoId,
+                    ':fid' => $fornId,
+                    ':tok' => $token
+                ]);
+
+                $qForn = $this->bd->prepare("SELECT email, razao_social FROM fornecedores WHERE id = :fid");
+                $qForn->execute([':fid' => $fornId]);
+                $supplier = $qForn->fetch();
+
+                if ($supplier && !empty($supplier['email'])) {
+                    $responderUrl = base_url('cotacao/responder?token=' . $token);
+                    $assunto = "Convite de Cotação - " . $numero;
+                    $mensagem = "
+                        <h2>Olá, " . htmlspecialchars($supplier['razao_social']) . "!</h2>
+                        <p>Você foi convidado a participar da cotação de preços <strong>" . $numero . "</strong>.</p>
+                        <p>Para enviar sua proposta comercial, por favor clique no link abaixo e autentique-se usando seu CNPJ:</p>
+                        <p><a href=\"" . $responderUrl . "\" style=\"display:inline-block; padding:10px 20px; background-color:#510B76; color:#fff; text-decoration:none; border-radius:5px;\">Responder Cotação</a></p>
+                        <p>Caso o botão não funcione, copie e cole o seguinte link no seu navegador:</p>
+                        <p>" . $responderUrl . "</p>
+                        <br>
+                        <p>Atenciosamente,<br>Departamento de Compras</p>
+                    ";
+                    
+                    \Config\Notificador::enviarEmail($supplier['email'], $assunto, $mensagem);
+                }
+            }
+
+            // 7. Registrar histórico da cotação
+            $this->registrarHistorico($this->tabela, $cotacaoId, [], ['status' => 'aberta'], $usuarioId, 'criação e convites da cotação');
+
             $this->bd->commit();
             return $cotacaoId;
         } catch (\Exception $e) {
@@ -209,7 +319,7 @@ class CotacaoModelo extends ModeloBase {
             $solItemId = !empty($item['solicitacao_item_id']) ? (int)$item['solicitacao_item_id'] : null;
 
             $cot = $this->buscarComDetalhes($cotacaoId);
-            if ($cot['status'] !== 'rascunho' && $cot['status'] !== 'aberto') {
+            if ($cot['status'] !== 'rascunho' && $cot['status'] !== 'aberta') {
                 $this->bd->rollBack();
                 return false;
             }
@@ -296,162 +406,213 @@ class CotacaoModelo extends ModeloBase {
         }
     }
 
-    public function definirVencedora(int $cotacaoId, int $cotacaoFornecedorId, int $usuarioId, bool $gerarOC = true): bool {
+    public function definirVencedoresPorItens(int $cotacaoId, array $propostaIds, int $usuarioId, bool $gerarOC = true): bool {
         try {
             $this->bd->beginTransaction();
 
-            $qCF = $this->bd->prepare("
-                SELECT cf.*, c.solicitacao_id
-                FROM cotacao_fornecedores cf
-                JOIN cotacoes c ON c.id = cf.cotacao_id
-                WHERE cf.id = :cfid AND cf.cotacao_id = :cid
-            ");
-            $qCF->execute([':cfid' => $cotacaoFornecedorId, ':cid' => $cotacaoId]);
-            $cf = $qCF->fetch();
-            if (!$cf) {
+            // 1. Verificar se a cotação existe e está aberta
+            $qCot = $this->bd->prepare("SELECT * FROM cotacoes WHERE id = :cid");
+            $qCot->execute([':cid' => $cotacaoId]);
+            $cot = $qCot->fetch();
+            if (!$cot || $cot['status'] === 'fechada') {
                 $this->bd->rollBack();
                 return false;
             }
 
-            $this->bd->prepare("UPDATE cotacao_fornecedores SET vencedora = 1 WHERE id = :cfid")
-                ->execute([':cfid' => $cotacaoFornecedorId]);
+            // 2. Zerar vencedora de todas as propostas desta cotação
+            $this->bd->prepare("
+                UPDATE cotacao_propostas cp
+                JOIN cotacao_fornecedores cf ON cf.id = cp.cotacao_fornecedor_id
+                SET cp.vencedora = 0
+                WHERE cf.cotacao_id = :cid
+            ")->execute([':cid' => $cotacaoId]);
 
-            $this->bd->prepare("UPDATE cotacao_fornecedores SET vencedora = 0 WHERE cotacao_id = :cid AND id != :cfid")
-                ->execute([':cid' => $cotacaoId, ':cfid' => $cotacaoFornecedorId]);
+            // 3. Marcar propostas selecionadas como vencedoras
+            if (!empty($propostaIds)) {
+                $placeholders = implode(',', array_fill(0, count($propostaIds), '?'));
+                $qSetVenc = $this->bd->prepare("UPDATE cotacao_propostas SET vencedora = 1 WHERE id IN ($placeholders)");
+                $qSetVenc->execute($propostaIds);
+            }
 
+            // 4. Resetar vencedora em cotacao_fornecedores
+            $this->bd->prepare("UPDATE cotacao_fornecedores SET vencedora = 0 WHERE cotacao_id = :cid")
+                     ->execute([':cid' => $cotacaoId]);
+
+            // 5. Marcar como vencedores os fornecedores que possuem pelo menos uma proposta vencedora
+            $this->bd->prepare("
+                UPDATE cotacao_fornecedores cf
+                JOIN (
+                    SELECT DISTINCT cotacao_fornecedor_id 
+                    FROM cotacao_propostas 
+                    WHERE vencedora = 1
+                ) sub ON sub.cotacao_fornecedor_id = cf.id
+                SET cf.vencedora = 1
+                WHERE cf.cotacao_id = :cid
+            ")->execute([':cid' => $cotacaoId]);
+
+            // 6. Fechar cotação
             $this->bd->prepare("
                 UPDATE cotacoes 
                 SET status = 'fechada', data_encerramento = CURDATE(), atualizado_em = NOW() 
                 WHERE id = :cid
             ")->execute([':cid' => $cotacaoId]);
 
-            $qProp = $this->bd->prepare("
-                SELECT cp.*
-                FROM cotacao_propostas cp
-                WHERE cp.cotacao_fornecedor_id = :cfid
-            ");
-            $qProp->execute([':cfid' => $cotacaoFornecedorId]);
-            $propostas = $qProp->fetchAll();
+            // 7. Se gerarOC for verdadeiro, gerar as Ordens de Compra
+            if ($gerarOC && !empty($propostaIds)) {
+                // Obter todos os fornecedores vencedores
+                $qWinners = $this->bd->prepare("
+                    SELECT cf.*, f.razao_social, f.email
+                    FROM cotacao_fornecedores cf
+                    JOIN fornecedores f ON f.id = cf.fornecedor_id
+                    WHERE cf.cotacao_id = :cid AND cf.vencedora = 1
+                ");
+                $qWinners->execute([':cid' => $cotacaoId]);
+                $winners = $qWinners->fetchAll();
 
-            if ($gerarOC) {
-                $subtotalItens = 0.00;
-                $maxPrazo = 0;
-                // Dados globais da transportadora (do fornecedor, não por item)
-                $transportadora = $cf['transportadora'] ?? null;
-                $cnpjTransportadora = $cf['cnpj_transportadora'] ?? null;
-                $modalidadeFrete = $cf['modalidade_frete'] ?? null;
+                foreach ($winners as $cf) {
+                    // Buscar propostas vencedoras deste fornecedor específico
+                    $qProps = $this->bd->prepare("
+                        SELECT cp.*, ci.solicitacao_item_id, ci.quantidade AS cot_item_quantidade
+                        FROM cotacao_itens ci
+                        JOIN cotacao_propostas cp ON cp.produto_id = ci.produto_id
+                        WHERE ci.cotacao_id = :cid AND cp.cotacao_fornecedor_id = :cfid AND cp.vencedora = 1
+                    ");
+                    $qProps->execute([':cid' => $cotacaoId, ':cfid' => $cf['id']]);
+                    $propostasForn = $qProps->fetchAll();
 
-                foreach ($propostas as $p) {
-                    $subtotalLinha = (float)$p['preco_unitario'] * (float)$p['quantidade'];
-                    $subtotalItens += $subtotalLinha;
-                    if ((int)$p['prazo_entrega'] > $maxPrazo) {
-                        $maxPrazo = (int)$p['prazo_entrega'];
+                    if (empty($propostasForn)) {
+                        continue;
                     }
-                }
 
-                $taxas = 0.00;
-                foreach ($propostas as $p) {
-                    $taxas += (float)($p['taxas'] ?? 0);
-                }
-                $valorTotal = max(0.00, $subtotalItens + $taxas);
+                    $subtotalItens = 0.00;
+                    $maxPrazo = 0;
+                    $taxasItens = 0.00;
 
-                $numeroOC = 'OC-' . date('Ymd') . '-' . rand(1000, 9999);
-                $prazoTexto = $maxPrazo > 0 ? "{$maxPrazo} dias" : "Imediato";
+                    foreach ($propostasForn as $p) {
+                        $subtotalItens += (float)$p['preco_unitario'] * (float)$p['cot_item_quantidade'];
+                        $taxasItens += (float)($p['taxas'] ?? 0);
+                        if ((int)$p['prazo_entrega'] > $maxPrazo) {
+                            $maxPrazo = (int)$p['prazo_entrega'];
+                        }
+                    }
 
-            $qOC = $this->bd->prepare("
-                INSERT INTO ordens_compra (
-                    numero, cotacao_id, solicitacao_id, fornecedor_id, usuario_id,
-                    modalidade_frete, transportadora, cnpj_transportadora, prazo_entrega, valor_total,
-                    status, emitido_em,
-                    observacao, criado_em
-                ) VALUES (
-                    :num, :cid, :sid, :fid, :uid,
-                    :frete, :transp, :cnpj_transp, :prazo, :total,
-                    'aberto', CURDATE(),
-                    :obs, NOW()
-                )
-            ");
-            $qOC->execute([
-                ':num' => $numeroOC,
-                ':cid' => $cotacaoId,
-                ':sid' => $cf['solicitacao_id'] ?? null,
-                ':fid' => $cf['fornecedor_id'],
-                ':uid' => $usuarioId,
-                ':frete' => $modalidadeFrete,
-                ':transp' => $transportadora,
-                ':cnpj_transp' => $cnpjTransportadora,
-                ':prazo' => $prazoTexto,
-                ':total' => $valorTotal,
-                ':obs' => $cf['observacao'] ?? null
-            ]);
-            $ordemId = (int) $this->bd->lastInsertId();
+                    $taxasGlobais = (float)($cf['taxas_adicionais'] ?? 0.00);
+                    $valorTotal = max(0.00, $subtotalItens + $taxasItens + $taxasGlobais);
+                    
+                    $numeroOC = 'OC-' . date('Ymd') . '-' . rand(1000, 9999);
+                    $prazoTexto = $maxPrazo > 0 ? "{$maxPrazo} dias" : "Imediato";
+                    $tokenOC = bin2hex(random_bytes(32));
 
-            // Inserir os itens baseados na cotacao_itens (preservando o solicitacao_item_id original)
-            $qItensCotacao = $this->bd->prepare("SELECT * FROM cotacao_itens WHERE cotacao_id = :cid");
-            $qItensCotacao->execute([':cid' => $cotacaoId]);
-            $itensCotacao = $qItensCotacao->fetchAll();
+                    $qOC = $this->bd->prepare("
+                        INSERT INTO ordens_compra (
+                            numero, cotacao_id, token, solicitacao_id, fornecedor_id, usuario_id,
+                            condicao_pagamento, modalidade_frete, transportadora, cnpj_transportadora, prazo_entrega, valor_total,
+                            status, emitido_em, observacao, criado_em
+                        ) VALUES (
+                            :num, :cid, :token, :sid, :fid, :uid,
+                            :cond, :frete, :transp, :cnpj_transp, :prazo, :total,
+                            'aberto', CURDATE(), :obs, NOW()
+                        )
+                    ");
+                    
+                    // Condição de pagamento sugerida
+                    $condicaoPagamentoDesc = '';
+                    if (!empty($propostasForn[0]['condicao_pagamento_id'])) {
+                        $qCond = $this->bd->prepare("SELECT descricao FROM condicoes_pagamento WHERE id = :id");
+                        $qCond->execute([':id' => $propostasForn[0]['condicao_pagamento_id']]);
+                        $condicaoPagamentoDesc = $qCond->fetchColumn() ?: '';
+                    }
 
-            $numeroItem = 1;
-            $dataEmissao = date('Y-m-d'); // Data de emissão da OC
-            foreach ($itensCotacao as $itemCotacao) {
-                // Encontrar o preço, prazo (dias) e condição de pagamento na proposta
-                $precoUnitario = 0;
-                $diasEntrega = null;
-                $condPagamentoId = null;
-                foreach ($propostas as $p) {
-                    if ($p['produto_id'] == $itemCotacao['produto_id']) {
-                        $precoUnitario = $p['preco_unitario'];
+                    $qOC->execute([
+                        ':num' => $numeroOC,
+                        ':cid' => $cotacaoId,
+                        ':token' => $tokenOC,
+                        ':sid' => $cot['solicitacao_id'] ?? null,
+                        ':fid' => $cf['fornecedor_id'],
+                        ':uid' => $usuarioId,
+                        ':cond' => $condicaoPagamentoDesc,
+                        ':frete' => $cf['modalidade_frete'],
+                        ':transp' => $cf['transportadora'],
+                        ':cnpj_transp' => $cf['cnpj_transportadora'],
+                        ':prazo' => $prazoTexto,
+                        ':total' => $valorTotal,
+                        ':obs' => $cf['observacao']
+                    ]);
+                    
+                    $ordemId = (int)$this->bd->lastInsertId();
+
+                    // Inserir os itens da OC
+                    $numeroItem = 1;
+                    $dataEmissao = date('Y-m-d');
+                    foreach ($propostasForn as $p) {
                         $diasEntrega = (int)($p['prazo_entrega'] ?? 0);
-                        $condPagamentoId = !empty($p['condicao_pagamento_id']) ? (int)$p['condicao_pagamento_id'] : null;
-                        break;
+                        $prazoEntregaItem = null;
+                        if ($diasEntrega > 0) {
+                            $dataEntrega = new \DateTime($dataEmissao);
+                            $dataEntrega->add(new \DateInterval("P{$diasEntrega}D"));
+                            $prazoEntregaItem = $dataEntrega->format('Y-m-d');
+                        }
+
+                        $this->bd->prepare("
+                            INSERT INTO ordem_compra_itens (
+                                ordem_id, numero_item, solicitacao_item_id, produto_id, quantidade, preco_unitario, prazo_entrega, condicao_pagamento_id
+                            ) VALUES (
+                                :oid, :num_item, :sid, :pid, :qtd, :price, :prazo, :pagto_id
+                            )
+                        ")->execute([
+                            ':oid' => $ordemId,
+                            ':num_item' => $numeroItem,
+                            ':sid' => $p['solicitacao_item_id'],
+                            ':pid' => $p['produto_id'],
+                            ':qtd' => $p['cot_item_quantidade'],
+                            ':price' => $p['preco_unitario'],
+                            ':prazo' => $prazoEntregaItem,
+                            ':pagto_id' => $p['condicao_pagamento_id']
+                        ]);
+
+                        $numeroItem++;
+                    }
+
+                    // Enviar e-mail de notificação para o fornecedor com link de aceite
+                    if (!empty($cf['email'])) {
+                        $revisarUrl = base_url('login/fornecedor/ordem?token=' . $tokenOC);
+                        $assunto = "Ordem de Compra Gerada - " . $numeroOC;
+                        $mensagem = "
+                            <h2>Olá, " . htmlspecialchars($cf['razao_social']) . "!</h2>
+                            <p>Uma nova Ordem de Compra <strong>" . $numeroOC . "</strong> foi gerada a partir da cotação de preços.</p>
+                            <p>Por favor, revise os detalhes da ordem de compra e confirme a sua aprovação e o envio dos produtos clicando no botão abaixo:</p>
+                            <p><a href=\"" . $revisarUrl . "\" style=\"display:inline-block; padding:10px 20px; background-color:#510B76; color:#fff; text-decoration:none; border-radius:5px; font-weight:bold;\">Visualizar e Confirmar Ordem de Compra</a></p>
+                            <p>Caso o botão não funcione, copie e cole o seguinte link no seu navegador:</p>
+                            <p>" . $revisarUrl . "</p>
+                            <br>
+                            <p>Atenciosamente,<br>Departamento de Compras</p>
+                        ";
+                        
+                        \Config\Notificador::enviarEmail($cf['email'], $assunto, $mensagem);
                     }
                 }
-
-                // Converter dias em data (emissão + dias)
-                $prazoEntrega = null;
-                if ($diasEntrega > 0) {
-                    $dataEntrega = new \DateTime($dataEmissao);
-                    $dataEntrega->add(new \DateInterval("P{$diasEntrega}D"));
-                    $prazoEntrega = $dataEntrega->format('Y-m-d');
-                }
-
-                $this->bd->prepare("
-                    INSERT INTO ordem_compra_itens (ordem_id, numero_item, solicitacao_item_id, produto_id, quantidade, preco_unitario, prazo_entrega, condicao_pagamento_id)
-                    VALUES (:oid, :num_item, :sid, :pid, :qtd, :price, :prazo, :pagto_id)
-                ")->execute([
-                    ':oid' => $ordemId,
-                    ':num_item' => $numeroItem,
-                    ':sid' => $itemCotacao['solicitacao_item_id'],
-                    ':pid' => $itemCotacao['produto_id'],
-                    ':qtd' => $itemCotacao['quantidade'],
-                    ':price' => $precoUnitario,
-                    ':prazo' => $prazoEntrega,
-                    ':pagto_id' => $condPagamentoId
-                ]);
-
-                $numeroItem++;
             }
-            } // Fim if ($gerarOC)
 
-            if ($cf['solicitacao_id']) {
+            // 8. Atualizar a solicitação vinculada
+            if ($cot['solicitacao_id']) {
                 $this->bd->prepare("UPDATE solicitacoes SET status = 'concluido' WHERE id = :sid")
-                         ->execute([':sid' => $cf['solicitacao_id']]);
+                         ->execute([':sid' => $cot['solicitacao_id']]);
 
                 require_once __DIR__ . '/SolicitacaoModelo.php';
                 $solicitacaoModelo = new SolicitacaoModelo();
-                $solicitacaoModelo->atualizarStatusCapa($cf['solicitacao_id'], $usuarioId);
-                $solicitacaoModelo->registrarHistorico('solicitacoes', (int)$cf['solicitacao_id'], ['status' => 'autorizado'], ['status' => 'concluido'], $usuarioId);
+                $solicitacaoModelo->registrarHistorico('solicitacoes', (int)$cot['solicitacao_id'], ['status' => 'autorizado'], ['status' => 'concluido'], $usuarioId);
             }
 
             $this->bd->commit();
 
-            $detalhes = $gerarOC ? "Proposta vencedora selecionada. Ordem de compra gerada." : "Proposta vencedora selecionada sem OC.";
-            $this->registrarHistorico($this->tabela, $cotacaoId, ['status' => 'aberto'], ['status' => 'fechada'], $usuarioId, $detalhes);
+            $this->registrarHistorico($this->tabela, $cotacaoId, ['status' => 'aberta'], ['status' => 'fechada'], $usuarioId, 'fechamento');
 
             return true;
         } catch (\Exception $e) {
-            if ($this->bd->inTransaction()) $this->bd->rollBack();
-            return false;
+            if ($this->bd->inTransaction()) {
+                $this->bd->rollBack();
+            }
+            throw $e;
         }
     }
 

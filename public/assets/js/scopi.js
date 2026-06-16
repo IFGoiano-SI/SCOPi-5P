@@ -105,7 +105,8 @@ const Scopi = {
       'recusado': 'Recusado',
       'recusada': 'Recusado',
       'registrada': 'Registrado',
-      'vinculada': 'Vinculado'
+      'vinculada': 'Vinculado',
+      'aprovado': 'Aprovado'
     };
     return mapa[status.toLowerCase()] || (status.charAt(0).toUpperCase() + status.slice(1).toLowerCase());
   },

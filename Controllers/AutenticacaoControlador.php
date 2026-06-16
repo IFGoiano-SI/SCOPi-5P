@@ -177,4 +177,53 @@ class AutenticacaoControlador extends BaseController {
 
         Auxiliares::redirecionar('cotacao/responder?token=' . urlencode($token));
     }
+
+    public function exibirLoginFornecedorOrdem(): void {
+        $token = $_GET['token'] ?? '';
+        $this->renderizarSemLayout('login/login-fornecedor-ordem', ['token' => $token]);
+    }
+
+    public function entrarFornecedorOrdem(): void {
+        Auxiliares::iniciarSessao();
+        $token = trim($_POST['token'] ?? '');
+        $cnpjInput = preg_replace('/\D/', '', $_POST['cnpj'] ?? '');
+
+        if (empty($token) || empty($cnpjInput)) {
+            Auxiliares::flash('erro', 'Por favor, preencha todos os campos.');
+            Auxiliares::redirecionar('login/fornecedor/ordem?token=' . urlencode($token));
+            return;
+        }
+
+        $bd = \Config\BancoDados::obterInstancia()->obterConexao();
+        $q = $bd->prepare("
+            SELECT oc.*, f.cnpj 
+            FROM ordens_compra oc
+            JOIN fornecedores f ON f.id = oc.fornecedor_id
+            WHERE oc.token = :token
+        ");
+        $q->execute([':token' => $token]);
+        $oc = $q->fetch();
+
+        if (!$oc) {
+            Auxiliares::flash('erro', 'Ordem de Compra não encontrada ou link inválido.');
+            Auxiliares::redirecionar('login/fornecedor/ordem?token=' . urlencode($token));
+            return;
+        }
+
+        $cnpjDb = preg_replace('/\D/', '', $oc['cnpj']);
+
+        if ($cnpjInput !== $cnpjDb) {
+            Auxiliares::flash('erro', 'CNPJ informado não corresponde ao da Ordem de Compra.');
+            Auxiliares::redirecionar('login/fornecedor/ordem?token=' . urlencode($token));
+            return;
+        }
+
+        // Sessão do Fornecedor para esta Ordem de Compra
+        $_SESSION['fornecedor_oc_logado'] = true;
+        $_SESSION['fornecedor_oc_id'] = (int)$oc['fornecedor_id'];
+        $_SESSION['ordem_compra_id'] = (int)$oc['id'];
+        $_SESSION['fornecedor_oc_token'] = $token;
+
+        Auxiliares::redirecionar('ordem/revisar?token=' . urlencode($token));
+    }
 }

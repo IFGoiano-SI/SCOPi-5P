@@ -82,6 +82,7 @@ $routes = [
     '/cotacoes' => ['CotacaoControlador', 'listar'],
     '/cotacoes/dados' => ['CotacaoControlador', 'dados'],
     '/cotacoes/salvarCapa' => ['CotacaoControlador', 'salvarCapa'],
+    '/cotacoes/criarCompleta' => ['CotacaoControlador', 'criarCompleta'],
     '/cotacoes/salvarItens' => ['CotacaoControlador', 'salvarItens'],
     '/cotacoes/convidarFornecedores' => ['CotacaoControlador', 'convidarFornecedores'],
     '/cotacoes/excluir_item' => ['CotacaoControlador', 'excluir_item'],
@@ -129,6 +130,10 @@ $routes = [
     '/cotacao/responder' => ['CotacaoFornecedorControlador', 'exibir'],
     '/cotacao/responder/salvar' => ['CotacaoFornecedorControlador', 'salvar'],
     '/cotacoes/reenviar-token' => ['CotacaoControlador', 'reenviarToken'],
+    '/login/fornecedor/ordem' => ['AutenticacaoControlador', 'exibirLoginFornecedorOrdem'],
+    '/login/fornecedor/ordem/entrar' => ['AutenticacaoControlador', 'entrarFornecedorOrdem'],
+    '/ordem/revisar' => ['OrdemFornecedorControlador', 'revisar'],
+    '/ordem/revisar/confirmar' => ['OrdemFornecedorControlador', 'confirmar'],
 ];
 
 return $routes;

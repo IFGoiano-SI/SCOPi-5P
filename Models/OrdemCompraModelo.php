@@ -77,14 +77,15 @@ class OrdemCompraModelo extends ModeloBase {
             $numero = str_pad($maxNum + 1, 6, '0', STR_PAD_LEFT);
             $solicitacaoId = !empty($dados['solicitacao_id']) ? (int)$dados['solicitacao_id'] : null;
             $cotacaoId = !empty($dados['cotacao_id']) ? (int)$dados['cotacao_id'] : null;
+            $tokenOC = bin2hex(random_bytes(32));
 
             $q = $this->bd->prepare("
                 INSERT INTO ordens_compra (
-                    numero, cotacao_id, solicitacao_id, fornecedor_id,
+                    numero, cotacao_id, token, solicitacao_id, fornecedor_id,
                     condicao_pagamento, modalidade_frete,
                     observacao, valor_total, usuario_id, status, emitido_em, criado_em
                 ) VALUES (
-                    :num, :cot_id, :sol_id, :fid,
+                    :num, :cot_id, :token, :sol_id, :fid,
                     :cond, :frete,
                     :obs, :total, :uid, 'aberto', CURDATE(), NOW()
                 )
@@ -92,6 +93,7 @@ class OrdemCompraModelo extends ModeloBase {
             $q->execute([
                 ':num' => $numero,
                 ':cot_id' => $cotacaoId,
+                ':token' => $tokenOC,
                 ':sol_id' => $solicitacaoId,
                 ':fid' => $fornecedorId,
                 ':cond' => $condicaoPagamento,
