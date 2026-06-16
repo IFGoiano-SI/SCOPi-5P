@@ -376,7 +376,7 @@ use Config\Auxiliares;
       </div>
     <?php elseif ($cf['status'] === 'respondido'): ?>
       <div class="banner-status sucesso">
-        <img src="<?= BASE_URL ?>/public/assets/icons/iconeVerificado.svg" alt="" style="filter: hue-rotate(90deg) brightness(0.8);">
+        <img src="<?= BASE_URL ?>/public/assets/icons/iconeBusca.svg" alt="" style="filter: hue-rotate(90deg) brightness(0.8);">
         <span>Você já enviou uma proposta para esta cotação em <?= date('d/m/Y \à\s H:i', strtotime($cf['respondido_em'])) ?>. Se necessário, você pode alterar os dados e reenviar a proposta até o encerramento.</span>
       </div>
     <?php endif; ?>
@@ -613,7 +613,7 @@ use Config\Auxiliares;
           <div>
             <?php if (!$fechada): ?>
               <button type="submit" class="btn btn-primario btn-salvar" style="padding: 10px 24px; font-size: 0.85rem;">
-                <img src="<?= BASE_URL ?>/public/assets/icons/iconeVerificado.svg" alt="" style="filter: brightness(0) invert(1);">
+                <img src="<?= BASE_URL ?>/public/assets/icons/iconeBusca.svg" alt="" style="filter: brightness(0) invert(1);">
                 Enviar Proposta Comercial
               </button>
             <?php else: ?>
@@ -743,14 +743,14 @@ use Config\Auxiliares;
           Scopi.toast('erro', json.mensagem || 'Ocorreu um erro ao salvar a proposta.');
           if (btn) {
             btn.disabled = false;
-            btn.innerHTML = '<img src="<?= BASE_URL ?>/public/assets/icons/iconeVerificado.svg" alt="" style="filter: brightness(0) invert(1);"> Enviar Proposta Comercial';
+            btn.innerHTML = '<img src="<?= BASE_URL ?>/public/assets/icons/iconeBusca.svg" alt="" style="filter: brightness(0) invert(1);"> Enviar Proposta Comercial';
           }
         }
       } catch (e) {
         Scopi.toast('erro', 'Falha na comunicação com o servidor.');
         if (btn) {
           btn.disabled = false;
-          btn.innerHTML = '<img src="<?= BASE_URL ?>/public/assets/icons/iconeVerificado.svg" alt="" style="filter: brightness(0) invert(1);"> Enviar Proposta Comercial';
+          btn.innerHTML = '<img src="<?= BASE_URL ?>/public/assets/icons/iconeBusca.svg" alt="" style="filter: brightness(0) invert(1);"> Enviar Proposta Comercial';
         }
       }
     }

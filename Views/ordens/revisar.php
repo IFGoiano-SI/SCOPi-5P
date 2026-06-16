@@ -338,7 +338,7 @@
     <!-- Banner de Status -->
     <?php if ((int)($ordem['aceito_fornecedor'] ?? 0) === 1): ?>
       <div class="banner-status sucesso">
-        <img src="<?= BASE_URL ?>/public/assets/icons/iconeVerificado.svg" alt="" style="filter: hue-rotate(90deg) brightness(0.8);">
+        <img src="<?= BASE_URL ?>/public/assets/icons/iconeBusca.svg" alt="" style="filter: hue-rotate(90deg) brightness(0.8);">
         <span>Você aprovou e aceitou esta Ordem de Compra em <strong><?= date('d/m/Y \à\s H:i', strtotime($ordem['aceito_em'])) ?></strong>. A empresa compradora já foi notificada e os produtos estão aguardando envio conforme acordado.</span>
       </div>
     <?php else: ?>
@@ -483,7 +483,7 @@
         <div>
           <?php if ((int)($ordem['aceito_fornecedor'] ?? 0) === 0): ?>
             <button type="button" class="btn btn-primario btn-salvar" id="btn-confirmar-oc" onclick="confirmarOrdem()" style="padding: 10px 24px; font-size: 0.85rem;">
-              <img src="<?= BASE_URL ?>/public/assets/icons/iconeVerificado.svg" alt="" style="filter: brightness(0) invert(1);">
+              <img src="<?= BASE_URL ?>/public/assets/icons/iconeBusca.svg" alt="" style="filter: brightness(0) invert(1);">
               Confirmar e Enviar Produtos
             </button>
           <?php else: ?>
@@ -531,14 +531,14 @@
       } else {
         mostrarToast(data.mensagem || 'Ocorreu um erro ao confirmar a Ordem de Compra.', 'erro');
         btn.disabled = false;
-        btn.innerHTML = '<img src="<?= BASE_URL ?>/public/assets/icons/iconeVerificado.svg" alt="" style="filter: brightness(0) invert(1);"> Confirmar e Enviar Produtos';
+        btn.innerHTML = '<img src="<?= BASE_URL ?>/public/assets/icons/iconeBusca.svg" alt="" style="filter: brightness(0) invert(1);"> Confirmar e Enviar Produtos';
       }
     })
     .catch(error => {
       console.error('Erro:', error);
       mostrarToast('Erro na conexão com o servidor.', 'erro');
       btn.disabled = false;
-      btn.innerHTML = '<img src="<?= BASE_URL ?>/public/assets/icons/iconeVerificado.svg" alt="" style="filter: brightness(0) invert(1);"> Confirmar e Enviar Produtos';
+      btn.innerHTML = '<img src="<?= BASE_URL ?>/public/assets/icons/iconeBusca.svg" alt="" style="filter: brightness(0) invert(1);"> Confirmar e Enviar Produtos';
     });
   }
   </script>

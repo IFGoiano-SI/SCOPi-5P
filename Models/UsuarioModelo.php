@@ -38,7 +38,6 @@ class UsuarioModelo extends ModeloBase {
     }
 
     public function cadastrar(array $dados, ?int $responsavelId = null): int {
-        $tempMatricula = uniqid('temp_');
         $this->bd->prepare("
             INSERT INTO usuarios (nome, email, senha, matricula, contato, departamento_id, perfil, situacao, tentativas_falhas, criado_em)
             VALUES (:nome, :email, :senha, :matricula, :contato, :dep, :perfil, 'ativo', 0, NOW())
@@ -46,17 +45,13 @@ class UsuarioModelo extends ModeloBase {
             ':nome'      => $dados['nome'],
             ':email'     => $dados['email'],
             ':senha'     => password_hash($dados['senha'], PASSWORD_DEFAULT),
-            ':matricula' => $tempMatricula,
+            ':matricula' => $dados['matricula'],
             ':contato'   => $dados['contato'],
             ':dep'       => $dados['departamento_id'],
             ':perfil'    => $dados['perfil'],
         ]);
         $novoId = (int) $this->bd->lastInsertId();
-        
-        $matriculaDefinitiva = date('y') . str_pad($novoId, 6, '0', STR_PAD_LEFT);
-        $this->bd->prepare("UPDATE usuarios SET matricula = :matr WHERE id = :id")->execute([':matr' => $matriculaDefinitiva, ':id' => $novoId]);
-        
-        $dados['matricula'] = $matriculaDefinitiva;
+
         
         if ($responsavelId) {
             // Remove password field for history privacy/security
