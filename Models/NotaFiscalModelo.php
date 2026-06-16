@@ -386,7 +386,8 @@ class NotaFiscalModelo extends ModeloBase {
                     'preco_unitario' => (float)($prod->vUnCom ?? 0),
                     'subtotal' => (float)($prod->vProd ?? 0),
                     'ncm' => (string)($prod->NCM ?? ''),
-                    'numero_item_pedido' => (string)($prod->nItemPed ?? '')
+                    'numero_item_pedido' => (string)($prod->nItemPed ?? ''),
+                    'produto_codigo' => (string)($prod->cProd ?? '')
                 ];
             }
 

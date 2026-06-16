@@ -41,6 +41,9 @@ class NotaFiscalControlador extends BaseController {
         $usuario = Auxiliares::usuarioLogado();
 
         $dados = $_POST;
+        if (!empty($_POST['itens_json'])) {
+            $dados['itens'] = json_decode($_POST['itens_json'], true);
+        }
 
         // Validações básicas
         if (empty($dados['numero']) || empty($dados['fornecedor_id']) || empty($dados['data_emissao'])) {
@@ -92,15 +95,30 @@ class NotaFiscalControlador extends BaseController {
         }
 
         // Tentar identificar fornecedor pelo CNPJ
+        $bd = \Config\BancoDados::obterInstancia()->obterConexao();
         if (!empty($dados['fornecedor_cnpj'])) {
-            $bd = \Config\BancoDados::obterInstancia()->obterConexao();
-            $qF = $bd->prepare("SELECT id, razao_social FROM fornecedores WHERE cnpj = :cnpj LIMIT 1");
             $cnpjLimpo = preg_replace('/\D/', '', $dados['fornecedor_cnpj']);
-            $qF->execute([':cnpj' => $cnpjLimpo]);
+            $cnpjFormatado = preg_replace('/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/', '$1.$2.$3/$4-$5', $cnpjLimpo);
+            $qF = $bd->prepare("SELECT id, razao_social FROM fornecedores WHERE cnpj = :cnpj OR cnpj = :cnpjLimpo LIMIT 1");
+            $qF->execute([':cnpj' => $cnpjFormatado, ':cnpjLimpo' => $cnpjLimpo]);
             $forn = $qF->fetch();
             if ($forn) {
                 $dados['fornecedor_id'] = $forn['id'];
                 $dados['fornecedor_nome'] = $forn['razao_social'];
+            }
+        }
+
+        // Tentar identificar produtos pelo código
+        if (!empty($dados['itens']) && is_array($dados['itens'])) {
+            $qP = $bd->prepare("SELECT id, nome FROM produtos WHERE codigo = :cod LIMIT 1");
+            foreach ($dados['itens'] as &$item) {
+                if (!empty($item['produto_codigo'])) {
+                    $qP->execute([':cod' => $item['produto_codigo']]);
+                    $prod = $qP->fetch();
+                    if ($prod) {
+                        $item['produto_id'] = $prod['id'];
+                    }
+                }
             }
         }
 
