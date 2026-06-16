@@ -308,6 +308,7 @@ CREATE TABLE IF NOT EXISTS ordem_compra_itens (
     prazo_entrega   DATE          NULL COMMENT 'Data de entrega prevista para este item',
     quantidade_atendida DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT 'Quantidade já recebida via NF',
     status          ENUM('aberto','autorizado','enviado','parcialmente_atendido','concluido','cancelado','aprovado') NOT NULL DEFAULT 'aberto' COMMENT 'Segue os mesmos status da ordem de compra',
+    status_item     ENUM('pendente','parcial','atendido','cancelado') NOT NULL DEFAULT 'pendente' COMMENT 'Status do recebimento do item',
     CONSTRAINT fk_oci_ordem   FOREIGN KEY (ordem_id)   REFERENCES ordens_compra(id) ON DELETE CASCADE,
     CONSTRAINT fk_oci_produto FOREIGN KEY (produto_id) REFERENCES produtos(id),
     CONSTRAINT fk_oci_solic_item FOREIGN KEY (solicitacao_item_id) REFERENCES solicitacao_itens(id) ON DELETE SET NULL,
