@@ -53,12 +53,46 @@ class CotacaoControlador extends BaseController {
                 $this->json(true, 'Cotação iniciada com sucesso.', ['id' => $id]);
             } else {
                 $bd = \Config\BancoDados::obterInstancia()->obterConexao();
-                $bd->prepare("UPDATE cotacoes SET data_abertura=:dta, data_encerramento=:dte WHERE id=:id AND status='aberto'")
+                $bd->prepare("UPDATE cotacoes SET data_abertura=:dta, data_encerramento=:dte WHERE id=:id AND status='aberta'")
                    ->execute([':dta' => $dataAbertura, ':dte' => $dataEncerramento, ':id' => $id]);
                 $this->json(true, 'Capa atualizada.', ['id' => $id]);
             }
         } catch (\Exception $e) {
             $this->json(false, 'Erro ao salvar cotação: ' . $e->getMessage());
+        }
+    }
+
+    public function criarCompleta(): void {
+        Auxiliares::exigirPerfil('comprador','administrador');
+        $usuario = Auxiliares::usuarioLogado();
+        
+        $solicitacaoId = (int)($_POST['solicitacao_id'] ?? 0);
+        $dataAbertura    = trim($_POST['data_abertura']    ?? '');
+        $dataEncerramento = trim($_POST['data_encerramento'] ?? '');
+        $fornecedorIds = $_POST['fornecedores'] ?? [];
+
+        if ($solicitacaoId <= 0) {
+            $this->json(false, 'Selecione uma solicitação aprovada.');
+            return;
+        }
+        if (empty($dataAbertura) || empty($dataEncerramento)) {
+            $this->json(false, 'As datas de abertura e encerramento são obrigatórias.');
+            return;
+        }
+        if ($dataEncerramento < $dataAbertura) {
+            $this->json(false, 'A data de encerramento não pode ser anterior à data de abertura.');
+            return;
+        }
+        if (!is_array($fornecedorIds) || empty($fornecedorIds)) {
+            $this->json(false, 'Selecione ao menos um fornecedor.');
+            return;
+        }
+
+        try {
+            $id = $this->m->criarCompleta($usuario['id'], $solicitacaoId, $dataAbertura, $dataEncerramento, $fornecedorIds);
+            $this->json(true, 'Cotação criada e convites enviados com sucesso.', ['id' => $id]);
+        } catch (\Exception $e) {
+            $this->json(false, 'Erro ao criar cotação: ' . $e->getMessage());
         }
     }
     
@@ -143,21 +177,29 @@ class CotacaoControlador extends BaseController {
     public function selecionarVencedor(): void {
         Auxiliares::exigirPerfil('comprador','administrador');
         $usuario = Auxiliares::usuarioLogado();
-        $cotacaoId = (int)($_POST['cotacao_id'] ?? 0);
-        $cfId = (int)($_POST['cotacao_fornecedor_id'] ?? 0);
-        $gerarOC = (int)($_POST['gerar_oc'] ?? 1);
 
-        if ($cotacaoId <= 0 || $cfId <= 0) {
-            $this->json(false, 'Parâmetros inválidos.');
+        $json = json_decode(file_get_contents('php://input'), true);
+        if ($json) {
+            $cotacaoId = (int)($json['cotacao_id'] ?? 0);
+            $propostaIds = array_map('intval', $json['proposta_ids'] ?? []);
+            $gerarOC = isset($json['gerar_oc']) ? (int)$json['gerar_oc'] : 1;
+        } else {
+            $cotacaoId = (int)($_POST['cotacao_id'] ?? 0);
+            $propostaIds = isset($_POST['proposta_ids']) ? array_map('intval', $_POST['proposta_ids']) : [];
+            $gerarOC = isset($_POST['gerar_oc']) ? (int)$_POST['gerar_oc'] : 1;
+        }
+
+        if ($cotacaoId <= 0 || empty($propostaIds)) {
+            $this->json(false, 'Parâmetros inválidos ou nenhuma proposta selecionada.');
             return;
         }
 
         try {
-            $ok = $this->m->definirVencedora($cotacaoId, $cfId, $usuario['id'], $gerarOC === 1);
-            $msg = $gerarOC === 1 ? 'Proposta vencedora selecionada. Ordem de compra gerada.' : 'Proposta vencedora selecionada. Cotação encerrada sem OC.';
+            $ok = $this->m->definirVencedoresPorItens($cotacaoId, $propostaIds, $usuario['id'], $gerarOC === 1);
+            $msg = $gerarOC === 1 ? 'Vencedores selecionados e Ordem(ns) de Compra gerada(s).' : 'Vencedores selecionados. Cotação encerrada sem OC.';
             $this->json($ok, $ok ? $msg : 'Erro ao selecionar proposta.');
         } catch (\Exception $e) {
-            $this->json(false, 'Erro ao selecionar proposta vencedora: ' . $e->getMessage());
+            $this->json(false, 'Erro ao selecionar propostas vencedoras: ' . $e->getMessage());
         }
     }
     public function fechar(): void { Auxiliares::exigirPerfil('comprador','administrador'); $this->json(true,'Cotação encerrada.'); }
@@ -193,7 +235,7 @@ class CotacaoControlador extends BaseController {
             return;
         }
 
-        if ($cf['status_cotacao'] !== 'aberto') {
+        if ($cf['status_cotacao'] !== 'aberta') {
             $this->json(false, 'Só é possível reenviar tokens enquanto a cotação estiver aberta.');
             return;
         }

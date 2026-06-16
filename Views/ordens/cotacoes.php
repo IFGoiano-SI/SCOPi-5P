@@ -1,4 +1,4 @@
-﻿<?php use Config\Auxiliares; ?>
+<?php use Config\Auxiliares; ?>
 <script>document.getElementById('topbarTitulo').textContent = 'Cotações';</script>
 <div class="pagina-cabecalho"><h1 class="pagina-titulo">Cotações</h1><p class="pagina-subtitulo">Gerenciamento de cotações com fornecedores</p></div>
 <div class="painel-filtros">
@@ -85,36 +85,38 @@
         <form id="formCotacao" onsubmit="event.preventDefault();">
           <input type="hidden" name="id" id="cotacaoIdInput" value="0">
 
-          <!-- CAMPOS READ-ONLY (Capa) -->
-          <div class="grade-form" style="grid-template-columns: 1fr 1fr; margin-bottom: 15px;">
-            <div class="campo-form">
-              <label>Número</label>
-              <input type="text" readonly class="campo-input" style="cursor: not-allowed;" value="" data-campo="numero">
+          <!-- CAMPOS DE EDICAO (Apenas se id > 0) -->
+          <div id="blocoCamposCabecalhoEdicao" style="display:none;">
+            <div class="grade-form" style="grid-template-columns: 1fr 1fr; margin-bottom: 15px;">
+              <div class="campo-form">
+                <label>Número</label>
+                <input type="text" readonly class="campo-input" style="cursor: not-allowed;" value="" data-campo="numero">
+              </div>
+              <div class="campo-form">
+                <label>Status</label>
+                <input type="text" readonly class="campo-input" style="cursor: not-allowed;" value="Aberto" data-campo="status_texto">
+              </div>
             </div>
-            <div class="campo-form">
-              <label>Status</label>
-              <input type="text" readonly class="campo-input" style="cursor: not-allowed;" value="Aberto" data-campo="status_texto">
-            </div>
-          </div>
 
-          <div class="grade-form" style="grid-template-columns: 1fr 1fr; margin-bottom: 15px;">
-            <div class="campo-form">
-              <label>Comprador</label>
-              <input type="text" readonly class="campo-input" style="cursor: not-allowed;" value="—" data-campo="nome_comprador">
+            <div class="grade-form" style="grid-template-columns: 1fr 1fr; margin-bottom: 15px;">
+              <div class="campo-form">
+                <label>Comprador</label>
+                <input type="text" readonly class="campo-input" style="cursor: not-allowed;" value="—" data-campo="nome_comprador">
+              </div>
+              <div class="campo-form">
+                <label>&nbsp;</label>
+              </div>
             </div>
-            <div class="campo-form">
-              <label>&nbsp;</label>
-            </div>
-          </div>
 
-          <div class="grade-form" style="grid-template-columns: 1fr 1fr; margin-bottom: 15px;">
-            <div class="campo-form">
-              <label>Fornecedores Convidados</label>
-              <input type="text" readonly class="campo-input" style="cursor: not-allowed;" value="0 fornecedor(es)" id="cotacContadorFornInput">
-            </div>
-            <div class="campo-form">
-              <label>&nbsp;</label>
-              <button type="button" class="btn btn-secundario" id="btnGerenciarFornecedores" style="display:none;" onclick="abrirModalFornecedores()">Gerenciar</button>
+            <div class="grade-form" style="grid-template-columns: 1fr 1fr; margin-bottom: 15px;">
+              <div class="campo-form">
+                <label>Fornecedores Convidados</label>
+                <input type="text" readonly class="campo-input" style="cursor: not-allowed;" value="0 fornecedor(es)" id="cotacContadorFornInput">
+              </div>
+              <div class="campo-form">
+                <label>&nbsp;</label>
+                <button type="button" class="btn btn-secundario" id="btnGerenciarFornecedores" style="display:none;" onclick="abrirModalFornecedores()">Gerenciar</button>
+              </div>
             </div>
           </div>
 
@@ -124,6 +126,13 @@
             <button type="button" class="aba-btn" id="abaCotItensBtn" onclick="mudarAbaEdicaoCot('itens')">2. Itens</button>
           </div>
           <div id="blocoCotCapa" style="display:block;">
+            <!-- Campo para Nova Cotação (id === 0) -->
+            <div class="campo-form" id="blocoNovaCotSolicitacao" style="margin-bottom:14px; display:none;">
+              <label>Solicitação Aprovada *</label>
+              <select name="solicitacao_id" id="novaCotSolicitacaoSel" class="campo-select" style="width: 100%;" onchange="aoSelecionarSolicitacaoNovaCot(this.value)">
+                <option value="">Selecione uma solicitação...</option>
+              </select>
+            </div>
 
             <!-- Campos editáveis da capa (datas) -->
             <div id="bloCotDatas" class="grade-form" style="grid-template-columns:1fr 1fr;margin-bottom:14px;">
@@ -137,6 +146,51 @@
               </div>
             </div>
 
+            <!-- Preview dos itens da solicitação selecionada (Nova cotação) -->
+            <div id="previewItensSolicitacaoNova" style="display:none; margin-bottom:14px;">
+              <span class="rotulo" style="margin-bottom: 6px; display: block; font-size: 0.85rem; color: var(--media);">Itens da Solicitação selecionada:</span>
+              <div class="tabela-container" style="max-height: 150px; overflow-y: auto; border: 1px solid var(--borda);">
+                <table class="tabela" id="tabPreviewItensSolicitacaoNova">
+                  <thead>
+                    <tr>
+                      <th style="padding: 8px 12px;">Produto</th>
+                      <th style="width:100px; text-align:right; padding: 8px 12px;">Quantidade</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Seleção de fornecedores integrada (Nova cotação) -->
+            <div id="blocoNovaCotFornecedores" style="display:none; margin-top:20px; border-top: 1px solid var(--borda); padding-top: 15px;">
+              <span class="rotulo" style="margin-bottom: 12px; display: block; font-size: 0.9rem; color: var(--media); font-weight:600;">Selecione os Fornecedores para convite:</span>
+              
+              <!-- Filtro de fornecedores dentro da criação -->
+              <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                <input type="text" id="filtroFornNovaCot" placeholder="Filtrar fornecedores por nome ou código..." onkeyup="filtrarFornecedoresNovaCot()" class="campo-input" style="flex:1;">
+                <button type="button" class="btn btn-secundario" style="font-size:0.75rem; padding:6px 10px;" onclick="marcarTodosFornNovaCot(true)">Marcar Todos</button>
+                <button type="button" class="btn btn-secundario" style="font-size:0.75rem; padding:6px 10px;" onclick="marcarTodosFornNovaCot(false)">Desmarcar Todos</button>
+              </div>
+
+              <!-- Lista de fornecedores -->
+              <div style="border: 1px solid var(--borda); border-radius: 6px; padding: 10px; max-height: 200px; overflow-y: auto; background-color: var(--branco);" id="novaCotFornecedoresChecklist">
+                <?php foreach($fornecedoresAtivos as $f): ?>
+                  <div class="fornecedor-chk-item-nova" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"
+                       data-nome-codigo="<?= strtolower(Auxiliares::escapar(($f['codigo'] ?? '') . ' ' . $f['razao_social'] . ' ' . ($f['nome_fantasia'] ?? ''))) ?>"
+                       data-categorias="<?= Auxiliares::escapar($f['categorias_ids'] ?? '') ?>">
+                    <input type="checkbox" name="fornecedores[]" value="<?= $f['id'] ?>" id="nova_forn_chk_<?= $f['id'] ?>" style="width:16px;height:16px;accent-color:var(--media);">
+                    <label for="nova_forn_chk_<?= $f['id'] ?>" style="font-size:0.78rem;cursor:pointer;user-select:none;flex:1;">
+                      <strong><?= Auxiliares::escapar($f['codigo'] ?? '') ?> — <?= Auxiliares::escapar($f['razao_social']) ?></strong>
+                      <span style="font-size:0.72rem;color:#888; display:block;">
+                        CNPJ: <?= Auxiliares::escapar($f['cnpj']) ?>
+                      </span>
+                      <span class="badge-sugerido-forn-nova" id="nova_sug_forn_<?= $f['id'] ?>" style="display:none;font-size:0.68rem;background:var(--media);color:#fff;padding:1px 5px;border-radius:3px;margin-left:4px;">Sugerido</span>
+                    </label>
+                  </div>
+                <?php endforeach; ?>
+              </div>
+            </div>
           </div>
             <div id="blocoItensCotacao" style="margin-top: 15px; border-top: 1px solid var(--borda); padding-top: 15px; display: none;">
             <span class="rotulo" style="margin-bottom: 12px; display: block; font-size: 1rem; color: var(--media);">Itens da Cotação</span>
@@ -204,6 +258,7 @@
       <button class="btn btn-secundario" id="btnVoltarCapaCot" style="display:none;" onclick="mudarAbaEdicaoCot('capa')">&larr; Voltar para Capa</button>
       <button class="btn btn-secundario" id="btnAvancarItensCot" style="display:none;" onclick="mudarAbaEdicaoCot('itens')">Avançar para Itens &rarr;</button>
       <button class="btn btn-secundario" onclick="Scopi.fecharModal('modalCotacao')">Fechar</button>
+      <button class="btn btn-primario" id="btnConfirmarCriacaoCot" onclick="confirmarCriacaoCotacao()" style="display:none;"><img src="<?= BASE_URL ?>/public/assets/icons/iconeInserir.svg" alt=""> Confirmar Criação</button>
       <button class="btn btn-primario btn-salvar-capa" id="btnSalvarCapaCot" onclick="salvarCapaCotacao()" style="display:none;"><img src="<?= BASE_URL ?>/public/assets/icons/iconeInserir.svg" alt=""> Confirmar Capa</button>
       <button class="btn btn-primario btn-salvar" id="btnSalvarItensCot" onclick="salvarItensCotacao()" style="display:none;"><img src="<?= BASE_URL ?>/public/assets/icons/iconeInserir.svg" alt=""> Salvar Itens</button>
     </div>
@@ -349,6 +404,12 @@ function mudarAbaEdicaoCot(aba) {
     const btnVoltar  = document.getElementById('btnVoltarCapaCot');
     const btnAvancar = document.getElementById('btnAvancarItensCot');
 
+    if (_idCot === 0) {
+        document.getElementById('abasCotacaoEditar').style.display = 'none';
+    } else {
+        document.getElementById('abasCotacaoEditar').style.display = 'flex';
+    }
+
     if (aba === 'capa') {
         if (blocoCapa)  blocoCapa.style.display  = 'block';
         if (blocoItens) blocoItens.style.display = 'none';
@@ -368,7 +429,7 @@ function mudarAbaEdicaoCot(aba) {
     if (blocoComp) blocoComp.style.display = (_idCot > 0) ? 'block' : 'none';
     atualizarBotoesCotacao();
 }
-let _statusCot = 'aberto';
+let _statusCot = 'aberta';
 let _cotacaoDados = null;
 let _itensCotacao = [];
 
@@ -389,16 +450,30 @@ const _origAbrirCadastro = Scopi.abrirCadastro;
 Scopi.abrirCadastro = function(idModal, idForm) {
     _origAbrirCadastro(idModal, idForm);
     if (idModal === 'modalCotacao') {
-        _idCot = 0; _statusCot = 'aberto'; _cotacaoDados = null; _itensCotacao = [];
+        _idCot = 0; _statusCot = 'aberta'; _cotacaoDados = null; _itensCotacao = [];
         document.getElementById('cotacaoIdInput').value = '0';
         document.querySelector('#modalCotacao [data-campo="numero"]').textContent = '';
+
+        // Show/hide blocks for creation vs edit
+        document.getElementById('blocoCamposCabecalhoEdicao').style.display = 'none';
+        document.getElementById('blocoNovaCotSolicitacao').style.display = 'block';
+        document.getElementById('previewItensSolicitacaoNova').style.display = 'none';
+        document.getElementById('blocoNovaCotFornecedores').style.display = 'none';
+        
+        // Load approved requests dropdown
+        carregarSolicitacoesAutorizadasCriacao();
+
+        // Reset suppliers checklist
+        document.querySelectorAll('#novaCotFornecedoresChecklist input[type=checkbox]').forEach(cb => {
+            cb.checked = false;
+        });
 
         // Preencher campos read-only na aba de edição com dados do usuário logado
         document.querySelectorAll('#formCotacao [data-campo]').forEach(el => {
             if (el.tagName === 'INPUT') {
                 const campo = el.getAttribute('data-campo');
                 if (campo === 'numero') el.value = '';
-                else if (campo === 'status_texto') el.value = 'Aberto';
+                else if (campo === 'status_texto') el.value = 'Aberta';
                 else if (campo === 'nome_comprador') el.value = USER_NOME || '—';
             }
         });
@@ -421,8 +496,9 @@ Scopi.abrirCadastro = function(idModal, idForm) {
         // Ativar a aba "editar" por padrão
         Scopi.ativarAba('modalCotacao', 'editar');
 
-        // Garantir que apenas "Confirmar Capa" está visível em nova cotação (DEPOIS de ativar aba)
-        document.getElementById('btnSalvarCapaCot').style.display = 'inline-flex';
+        // Garantir que apenas "Confirmar Criação" está visível em nova cotação (DEPOIS de ativar aba)
+        document.getElementById('btnConfirmarCriacaoCot').style.display = 'inline-flex';
+        document.getElementById('btnSalvarCapaCot').style.display = 'none';
         document.getElementById('btnSalvarItensCot').style.display = 'none';
 
         renderItensCotacaoTabela();
@@ -439,8 +515,14 @@ Scopi.abrirRegistro = async function(idModal, idForm, urlDados, id, abaInicial='
             const json = await resp.json();
             if (json.sucesso) {
                 _cotacaoDados = json.dados;
-                _statusCot = json.dados.status || 'aberto';
+                _statusCot = json.dados.status || 'aberta';
                 _itensCotacao = json.dados.itens || [];
+
+                // Show/hide blocks for creation vs edit
+                document.getElementById('blocoCamposCabecalhoEdicao').style.display = 'block';
+                document.getElementById('blocoNovaCotSolicitacao').style.display = 'none';
+                document.getElementById('previewItensSolicitacaoNova').style.display = 'none';
+                document.getElementById('blocoNovaCotFornecedores').style.display = 'none';
 
                 // Preencher campos read-only na aba de edição
                 const dados = json.dados;
@@ -466,7 +548,7 @@ Scopi.abrirRegistro = async function(idModal, idForm, urlDados, id, abaInicial='
                 if (dAb)  dAb.value  = json.dados.data_abertura    || '';
                 if (dEnc) dEnc.value = json.dados.data_encerramento || '';
                 // Se não for aberta, tornar readonly
-                const editavel = _statusCot === 'aberto' && (USER_PERFIL === 'comprador' || USER_PERFIL === 'administrador');
+                const editavel = _statusCot === 'aberta' && (USER_PERFIL === 'comprador' || USER_PERFIL === 'administrador');
                 if (dAb)  { if (editavel) dAb.removeAttribute('readonly');  else dAb.setAttribute('readonly',''); }
                 if (dEnc) { if (editavel) dEnc.removeAttribute('readonly'); else dEnc.setAttribute('readonly',''); }
 
@@ -475,7 +557,7 @@ Scopi.abrirRegistro = async function(idModal, idForm, urlDados, id, abaInicial='
                 // Sugestão automática por categoria (RF10)
                 _marcarFornecedoresSugeridos(json.dados.itens || []);
                 
-                if (_statusCot === 'aberto' && (USER_PERFIL === 'comprador' || USER_PERFIL === 'administrador')) {
+                if (_statusCot === 'aberta' && (USER_PERFIL === 'comprador' || USER_PERFIL === 'administrador')) {
                     document.getElementById('btnGerenciarFornecedores').style.display = 'inline-flex';
                     mudarAbaEdicaoCot('capa');
                     document.getElementById('acoesItensCotacao').style.display = 'flex';
@@ -483,6 +565,7 @@ Scopi.abrirRegistro = async function(idModal, idForm, urlDados, id, abaInicial='
                     document.getElementById('btnAdicionarItemCot').removeAttribute('disabled');
                     document.getElementById('btnAdicionarItemCot').title = 'Adicionar item à cotação';
 
+                    document.getElementById('btnConfirmarCriacaoCot').style.display = 'none';
                     document.getElementById('btnSalvarCapaCot').style.display = 'none';
                     document.getElementById('btnSalvarItensCot').style.display = 'inline-flex';
                 } else {
@@ -493,6 +576,7 @@ Scopi.abrirRegistro = async function(idModal, idForm, urlDados, id, abaInicial='
                     document.getElementById('btnAdicionarItemCot').setAttribute('disabled', '');
                     document.getElementById('btnAdicionarItemCot').title = 'Esta cotação não pode ser editada';
 
+                    document.getElementById('btnConfirmarCriacaoCot').style.display = 'none';
                     document.getElementById('btnSalvarCapaCot').style.display = 'none';
                     document.getElementById('btnSalvarItensCot').style.display = 'none';
                 }
@@ -591,7 +675,7 @@ function renderItensCotacaoTabela() {
             <td style="text-align:right; padding: 8px 12px;">${parseFloat(it.quantidade).toFixed(2)}</td>
             <td style="padding: 8px 12px; font-size:0.85rem;">${it.prazo_entrega || '—'}</td>
             <td style="text-align:center; padding: 8px 12px;">
-                ${_statusCot === 'aberto' ? `
+                ${_statusCot === 'aberta' ? `
                     <button type="button" class="btn-icone" onclick="removerItemCotacaoTabela(${idx})" title="Remover">
                         <img src="<?= BASE_URL ?>/public/assets/icons/iconeFechar.svg" style="width:12px;filter:brightness(0) saturate(100%) invert(18%) sepia(85%) saturate(2200%) hue-rotate(330deg);" alt="">
                     </button>
@@ -921,35 +1005,46 @@ function filtrarFornecedoresChecklist() {
     });
 }
 
-function selecionarPropostaVencedora(cotacaoId, cotacaoFornecedorId) {
-    Scopi.confirmar('Deseja aprovar este fornecedor como vencedor?', () => {
-        Scopi.confirmar('Deseja gerar a ORDEM DE COMPRA automaticamente agora?', () => {
-            _selecionarPropostaVencedora_execute(cotacaoId, cotacaoFornecedorId, true);
+function confirmarVencedoresItens(cotacaoId) {
+    const radios = document.querySelectorAll('.vencedor-radio-item:checked');
+    if (radios.length === 0) {
+        Scopi.toast('alerta', 'Selecione o vencedor de pelo menos um item da cotação.');
+        return;
+    }
+
+    const propostaIds = Array.from(radios).map(r => parseInt(r.value));
+
+    Scopi.confirmar('Deseja aprovar os fornecedores selecionados para cada item?', () => {
+        Scopi.confirmar('Deseja gerar as ORDENS DE COMPRA automaticamente agora?', () => {
+            _confirmarVencedoresItens_execute(cotacaoId, propostaIds, true);
         }, () => {
-            _selecionarPropostaVencedora_execute(cotacaoId, cotacaoFornecedorId, false);
+            _confirmarVencedoresItens_execute(cotacaoId, propostaIds, false);
         });
     });
 }
 
-function _selecionarPropostaVencedora_execute(cotacaoId, cotacaoFornecedorId, gerarOC) {
-    // Mostra indicador de carregamento
+function _confirmarVencedoresItens_execute(cotacaoId, propostaIds, gerarOC) {
     const btnToast = Scopi.toast('info', 'Processando...', 5000);
 
     fetch(Scopi.url('/cotacoes/selecionar-vencedor'), {
         method: 'POST',
         credentials: 'include',
         headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
+            'Content-Type': 'application/json',
             'X-Requested-With': 'XMLHttpRequest'
         },
-        body: `cotacao_id=${cotacaoId}&cotacao_fornecedor_id=${cotacaoFornecedorId}&gerar_oc=${gerarOC ? 1 : 0}`
+        body: JSON.stringify({
+            cotacao_id: cotacaoId,
+            proposta_ids: propostaIds,
+            gerar_oc: gerarOC ? 1 : 0
+        })
     })
     .then(r => r.json())
     .then(json => {
         if (json.sucesso) {
             Scopi.toast('sucesso', json.mensagem);
-            Scopi.abrirRegistro('modalCotacao', 'formCotacao', '/cotacoes/dados', cotacaoId, 'propostas');
-            setTimeout(() => window.location.reload(), 1500);
+            Scopi.fecharModal('modalCotacao');
+            setTimeout(() => window.location.reload(), 1000);
         } else {
             Scopi.toast('alerta', json.mensagem);
         }
@@ -1017,17 +1112,31 @@ function renderMatrix(cotacao) {
                 const sub = parseFloat(prop.preco_unitario) * parseFloat(item.quantidade);
                 const taxas = parseFloat(prop.taxas || 0);
                 const subTotalItem = sub + taxas;
+                const isWinner = parseInt(prop.vencedora) === 1;
+
                 html += `
-                    <div style="font-weight: 600; color: var(--media);">${formatarMoeda(prop.preco_unitario)}</div>
-                    <div style="font-size: 0.75rem; color: #666; margin-top: 2px;">Subtotal: ${formatarMoeda(sub)}</div>
-                    ${taxas > 0 ? `
-                        <div style="font-size: 0.72rem; color: var(--alerta); margin-top: 1px;">Taxas: +${formatarMoeda(taxas)}</div>
-                        <div style="font-size: 0.75rem; color: #2e7d32; font-weight: 600;">Total: ${formatarMoeda(subTotalItem)}</div>
-                    ` : ''}
-                    <div style="font-size: 0.72rem; color: #444; margin-top: 4px;">Prazo: ${prop.prazo_entrega} dias</div>
-                    <div style="font-size: 0.72rem; color: #444; margin-top: 2px;">Cond. Pagto: ${prop.condicao_pagamento || '—'}</div>
-                    <div style="font-size: 0.72rem; color: #444; margin-top: 2px;">Garantia: ${prop.garantia || '—'}</div>
-                    ${prop.observacao ? `<div style="font-size: 0.70rem; color: #888; font-style: italic; margin-top: 4px; max-width: 180px; margin-left: auto; margin-right: auto; line-height: 1.2;">Obs: ${prop.observacao}</div>` : ''}
+                    <div style="${isWinner ? 'border: 2px solid var(--sucesso); background-color: rgba(76, 175, 80, 0.05); padding: 8px; border-radius: 6px; position: relative;' : ''}">
+                        ${isWinner ? `<span class="badge badge-concluida" style="position: absolute; top: -10px; left: 50%; transform: translateX(-50%); font-size: 0.65rem; padding: 2px 6px;">✓ Vencedora</span>` : ''}
+                        <div style="font-weight: 600; color: var(--media);">${formatarMoeda(prop.preco_unitario)}</div>
+                        <div style="font-size: 0.75rem; color: #666; margin-top: 2px;">Subtotal: ${formatarMoeda(sub)}</div>
+                        ${taxas > 0 ? `
+                            <div style="font-size: 0.72rem; color: var(--alerta); margin-top: 1px;">Taxas: +${formatarMoeda(taxas)}</div>
+                            <div style="font-size: 0.75rem; color: #2e7d32; font-weight: 600;">Total: ${formatarMoeda(subTotalItem)}</div>
+                        ` : ''}
+                        <div style="font-size: 0.72rem; color: #444; margin-top: 4px;">Prazo: ${prop.prazo_entrega} dias</div>
+                        <div style="font-size: 0.72rem; color: #444; margin-top: 2px;">Cond. Pagto: ${prop.condicao_pagamento || '—'}</div>
+                        <div style="font-size: 0.72rem; color: #444; margin-top: 2px;">Garantia: ${prop.garantia || '—'}</div>
+                        ${prop.observacao ? `<div style="font-size: 0.70rem; color: #888; font-style: italic; margin-top: 4px; max-width: 180px; margin-left: auto; margin-right: auto; line-height: 1.2;">Obs: ${prop.observacao}</div>` : ''}
+                        
+                        ${(cotacao.status !== 'fechada' && cotacao.status !== 'cancelada') ? `
+                            <div style="margin-top: 8px; border-top: 1px dashed var(--borda); padding-top: 6px;">
+                                <label style="font-size: 0.75rem; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; color: var(--texto);">
+                                    <input type="radio" class="vencedor-radio-item" name="item_vencedor_${item.produto_id}" value="${prop.id}" ${isWinner ? 'checked' : ''} style="cursor: pointer;">
+                                    <span>Vencedor</span>
+                                </label>
+                            </div>
+                        ` : ''}
+                    </div>
                 `;
             } else {
                 html += `<span style="color: #bbb; font-size: 0.8rem;">—</span>`;
@@ -1111,19 +1220,10 @@ function renderMatrix(cotacao) {
     fornecedores.forEach(f => {
         html += `<td style="padding: 12px 10px; text-align: center; border-left: 1px solid var(--borda);">`;
         if (parseInt(f.vencedora) === 1) {
-            html += `<span class="badge badge-concluida" style="padding: 6px 12px; font-size: 0.78rem;">âœ“ Vencedora (OC Gerada)</span>`;
+            html += `<span class="badge badge-concluida" style="padding: 6px 12px; font-size: 0.78rem;">✓ Vencedor (OC Gerada)</span>`;
         } else {
-            if (cotacao.status !== 'fechada' && cotacao.status !== 'cancelado' && f.status === 'respondido') {
-                if (USER_PERFIL === 'comprador' || USER_PERFIL === 'administrador') {
-                    html += `
-                        <button type="button" class="btn" style="background-color: var(--media); color: var(--branco); font-size: 0.75rem; padding: 6px 12px;" 
-                                onclick="selecionarPropostaVencedora(${cotacao.id}, ${f.id})">
-                            Selecionar Vencedor
-                        </button>
-                    `;
-                } else {
-                    html += `<span style="color: #888; font-size: 0.75rem;">Aguardando seleção</span>`;
-                }
+            if (cotacao.status !== 'fechada' && cotacao.status !== 'cancelada') {
+                html += `<span style="color: #888; font-size: 0.75rem; font-style: italic;">Aguardando escolha</span>`;
             } else {
                 html += `<span style="color: #bbb; font-size: 0.75rem;">—</span>`;
             }
@@ -1137,7 +1237,167 @@ function renderMatrix(cotacao) {
         </table>
     `;
 
+    if (cotacao.status !== 'fechada' && cotacao.status !== 'cancelada') {
+        if (USER_PERFIL === 'comprador' || USER_PERFIL === 'administrador') {
+            html += `
+                <div style="display: flex; justify-content: flex-end; margin-top: 20px; padding: 15px; border-top: 1px solid var(--borda); background-color: var(--fundo-app); border-radius: 6px;">
+                    <button type="button" class="btn" style="background-color: var(--media); color: var(--branco); font-weight: 600; padding: 10px 20px; font-size: 0.85rem;" 
+                            onclick="confirmarVencedoresItens(${cotacao.id})">
+                        Confirmar Vencedores e Gerar OCs
+                    </button>
+                </div>
+            `;
+        }
+    }
+
     container.innerHTML = html;
+}
+
+// ==========================================
+// FUNÇÕES PARA O NOVO FLUXO DE CRIAÇÃO
+// ==========================================
+async function carregarSolicitacoesAutorizadasCriacao() {
+    const sel = document.getElementById('novaCotSolicitacaoSel');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Carregando solicitações...</option>';
+    
+    try {
+        const resp = await fetch(Scopi.url('/solicitacoes/autorizadas'), {credentials:'include',headers:{'X-Requested-With':'XMLHttpRequest'}});
+        const json = await resp.json();
+        if (json.sucesso && json.dados) {
+            let html = '<option value="">Selecione uma solicitação...</option>';
+            json.dados.forEach(s => {
+                html += `<option value="${s.id}">Solicitação: ${s.numero} - Dep: ${s.nome_departamento || '—'} (Solicitante: ${s.nome_solicitante || '—'})</option>`;
+            });
+            sel.innerHTML = html;
+        } else {
+            sel.innerHTML = '<option value="">Nenhuma solicitação autorizada encontrada.</option>';
+        }
+    } catch(e) {
+        sel.innerHTML = '<option value="">Erro ao carregar solicitações.</option>';
+    }
+}
+
+async function aoSelecionarSolicitacaoNovaCot(solicitacaoId) {
+    const previewDiv = document.getElementById('previewItensSolicitacaoNova');
+    const tbody = document.querySelector('#tabPreviewItensSolicitacaoNova tbody');
+    const fornDiv = document.getElementById('blocoNovaCotFornecedores');
+    
+    if (!solicitacaoId) {
+        previewDiv.style.display = 'none';
+        tbody.innerHTML = '';
+        fornDiv.style.display = 'none';
+        return;
+    }
+    
+    tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;padding:10px;">Carregando itens...</td></tr>';
+    previewDiv.style.display = 'block';
+    
+    try {
+        const resp = await fetch(Scopi.url(`/solicitacoes/dados?id=${solicitacaoId}`), {credentials:'include',headers:{'X-Requested-With':'XMLHttpRequest'}});
+        const json = await resp.json();
+        if (json.sucesso && json.dados && json.dados.itens) {
+            tbody.innerHTML = '';
+            
+            const itensValidos = json.dados.itens.filter(item => {
+                return item.status !== 'em_cotacao' && item.status !== 'concluido' && item.status !== 'cancelado';
+            });
+            
+            if (itensValidos.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;padding:10px;color:var(--alerta);">Esta solicitação não possui itens pendentes para cotação.</td></tr>';
+                fornDiv.style.display = 'none';
+                return;
+            }
+            
+            itensValidos.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="padding: 8px 12px;">${item.nome_produto} (${item.codigo_produto || '—'})</td>
+                    <td style="text-align: right; padding: 8px 12px; font-weight: 600;">${parseFloat(item.quantidade).toFixed(2)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+            
+            fornDiv.style.display = 'block';
+            
+            // Mark suggested suppliers
+            const categoriasItens = new Set(itensValidos.map(i => String(i.categoria_id)).filter(Boolean));
+            document.querySelectorAll('#novaCotFornecedoresChecklist .fornecedor-chk-item-nova').forEach(item => {
+                const catsForn = (item.dataset.categorias || '').split(',').filter(Boolean);
+                const sugerido = catsForn.some(c => categoriasItens.has(c));
+                const badge = item.querySelector('.badge-sugerido-forn-nova');
+                if (badge) badge.style.display = sugerido ? 'inline' : 'none';
+            });
+        } else {
+            tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;padding:10px;color:var(--alerta);">Erro ao carregar os itens desta solicitação.</td></tr>';
+            fornDiv.style.display = 'none';
+        }
+    } catch(e) {
+        tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;padding:10px;color:var(--alerta);">Erro na comunicação.</td></tr>';
+        fornDiv.style.display = 'none';
+    }
+}
+
+function filtrarFornecedoresNovaCot() {
+    const query = document.getElementById('filtroFornNovaCot').value.toLowerCase().trim();
+    document.querySelectorAll('#novaCotFornecedoresChecklist .fornecedor-chk-item-nova').forEach(item => {
+        const text = item.dataset.nomeCodigo || '';
+        item.style.display = text.includes(query) ? 'flex' : 'none';
+    });
+}
+
+function marcarTodosFornNovaCot(marcar) {
+    document.querySelectorAll('#novaCotFornecedoresChecklist input[type=checkbox]').forEach(cb => {
+        if (cb.parentElement.style.display !== 'none') {
+            cb.checked = marcar;
+        }
+    });
+}
+
+async function confirmarCriacaoCotacao() {
+    const solSel = document.getElementById('novaCotSolicitacaoSel');
+    const dAb = document.getElementById('cotDataAbertura');
+    const dEnc = document.getElementById('cotDataEncerramento');
+    
+    if (!solSel || !solSel.value) { Scopi.toast('erro', 'Selecione uma solicitação aprovada.'); return; }
+    if (!dAb?.value || !dEnc?.value) { Scopi.toast('erro', 'Informe as datas de abertura e encerramento.'); return; }
+    if (dEnc.value < dAb.value) { Scopi.toast('erro', 'A data de encerramento não pode ser anterior à abertura.'); return; }
+    
+    const fornecedorIds = [];
+    document.querySelectorAll('#novaCotFornecedoresChecklist input[type=checkbox]:checked').forEach(cb => {
+        fornecedorIds.push(cb.value);
+    });
+    
+    if (fornecedorIds.length === 0) {
+        Scopi.toast('erro', 'Selecione ao menos um fornecedor.');
+        return;
+    }
+    
+    const btnConfirm = document.getElementById('btnConfirmarCriacaoCot');
+    if (btnConfirm) btnConfirm.disabled = true;
+    
+    const formData = new FormData(document.getElementById('formCotacao'));
+    
+    try {
+        const resp = await fetch(Scopi.url('/cotacoes/criarCompleta'), { 
+            method: 'POST', 
+            credentials: 'include', 
+            body: formData, 
+            headers: {'X-Requested-With': 'XMLHttpRequest'} 
+        });
+        const json = await resp.json();
+        if (json.sucesso) {
+            Scopi.toast('sucesso', json.mensagem);
+            Scopi.fecharModal('modalCotacao');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            Scopi.toast('erro', json.mensagem);
+            if (btnConfirm) btnConfirm.disabled = false;
+        }
+    } catch(e) {
+        Scopi.toast('erro', 'Erro ao criar cotação.');
+        if (btnConfirm) btnConfirm.disabled = false;
+    }
 }
 </script>
 

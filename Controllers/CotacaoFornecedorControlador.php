@@ -48,8 +48,9 @@ class CotacaoFornecedorControlador extends BaseController {
         $itens = $qItens->fetchAll();
 
         $qProp = $bd->prepare("
-            SELECT cp.*
+            SELECT cp.*, CONCAT(cop.codigo, ' - ', cop.descricao) AS condicao_pagamento
             FROM cotacao_propostas cp
+            LEFT JOIN condicoes_pagamento cop ON cop.id = cp.condicao_pagamento_id
             WHERE cp.cotacao_fornecedor_id = :cfid
         ");
         $qProp->execute([':cfid' => $cfId]);
@@ -166,6 +167,18 @@ class CotacaoFornecedorControlador extends BaseController {
                     throw new \Exception("O prazo de entrega não pode ser negativo.");
                 }
 
+                // Resolve condition of payment ID from database based on selected code
+                $condPagamentoId = null;
+                if (!empty($condPagamentoItem)) {
+                    $codigoCond = substr($condPagamentoItem, 0, 2);
+                    $qCond = $bd->prepare("SELECT id FROM condicoes_pagamento WHERE codigo = :cod LIMIT 1");
+                    $qCond->execute([':cod' => $codigoCond]);
+                    $condId = $qCond->fetchColumn();
+                    if ($condId !== false) {
+                        $condPagamentoId = (int)$condId;
+                    }
+                }
+
                 // Obter quantidade do item da cotação
                 $qQtd = $bd->prepare("SELECT SUM(quantidade) FROM cotacao_itens WHERE cotacao_id = :cid AND produto_id = :pid");
                 $qQtd->execute([':cid' => $cf['cotacao_id'], ':pid' => $prodId]);
@@ -188,7 +201,7 @@ class CotacaoFornecedorControlador extends BaseController {
                             prazo_entrega = :prazo,
                             taxas = :taxas,
                             garantia = :garantia,
-                            condicao_pagamento = :pagto,
+                            condicao_pagamento_id = :pagto_id,
                             observacao = :obs,
                             modelo = :modelo,
                             disponivel = :disp
@@ -199,7 +212,7 @@ class CotacaoFornecedorControlador extends BaseController {
                         ':prazo' => $prazoEntrega,
                         ':taxas' => $taxasItem,
                         ':garantia' => $garantiaItem,
-                        ':pagto' => $condPagamentoItem,
+                        ':pagto_id' => $condPagamentoId,
                         ':obs' => $obsItem,
                         ':modelo' => $modelo,
                         ':disp' => $disponivel,
@@ -208,8 +221,8 @@ class CotacaoFornecedorControlador extends BaseController {
                 } else {
                     // Insert
                     $qInProp = $bd->prepare("
-                        INSERT INTO cotacao_propostas (cotacao_fornecedor_id, produto_id, quantidade, preco_unitario, prazo_entrega, taxas, garantia, condicao_pagamento, observacao, modelo, disponivel)
-                        VALUES (:cfid, :pid, :qtd, :preco, :prazo, :taxas, :garantia, :pagto, :obs, :modelo, :disp)
+                        INSERT INTO cotacao_propostas (cotacao_fornecedor_id, produto_id, quantidade, preco_unitario, prazo_entrega, taxas, garantia, condicao_pagamento_id, observacao, modelo, disponivel)
+                        VALUES (:cfid, :pid, :qtd, :preco, :prazo, :taxas, :garantia, :pagto_id, :obs, :modelo, :disp)
                     ");
                     $qInProp->execute([
                         ':cfid' => $cfId,
@@ -219,7 +232,7 @@ class CotacaoFornecedorControlador extends BaseController {
                         ':prazo' => $prazoEntrega,
                         ':taxas' => $taxasItem,
                         ':garantia' => $garantiaItem,
-                        ':pagto' => $condPagamentoItem,
+                        ':pagto_id' => $condPagamentoId,
                         ':obs' => $obsItem,
                         ':modelo' => $modelo,
                         ':disp' => $disponivel
