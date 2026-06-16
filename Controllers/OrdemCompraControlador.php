@@ -379,4 +379,17 @@ class OrdemCompraControlador extends BaseController {
         // Renderizar a view sem o layout padrão (header/footer) para impressão
         $this->renderizarSemLayout('ordens/imprimir', compact('ordem'));
     }
+
+    public function consultarCodigo(): void {
+        Auxiliares::exigirAutenticacao();
+        $numero = $_GET['codigo'] ?? '';
+        $q = \Config\BancoDados::obterInstancia()->obterConexao()->prepare("SELECT id, numero, status FROM ordens_compra WHERE numero = :num LIMIT 1");
+        $q->execute([':num' => $numero]);
+        $ordem = $q->fetch();
+        if ($ordem) {
+            $this->json(true, '', $ordem);
+        } else {
+            $this->json(false, 'Ordem de Compra não encontrada.');
+        }
+    }
 }

@@ -128,7 +128,7 @@
             <div class="campo-form campo-completo" style="margin-top:20px; padding-top:15px; border-top:1px solid var(--borda);">
                 <label style="color: var(--primario); font-weight: 600;">Vincular Ordem de Compra</label>
                 <div style="display: flex; gap: 8px; align-items: center; margin-top: 8px;">
-                    <input type="text" id="nfOrdemCodigo" class="campo-input" style="width: 140px; text-transform: uppercase;"  required>
+                    <input type="text" id="nfOrdemCodigo" class="campo-input" style="width: 140px; text-transform: uppercase;" onblur="buscarOrdemForm(this.value)" required>
                     <button type="button" class="btn btn-secundario" style="padding: 6px 8px;" title="Buscar ordem" onclick="Scopi.iconeBusca('ordens', 'nfOrdemCodigo', 'nfOrdemNome', 'nfOrdemId')"><img src="<?= BASE_URL ?>/public/assets/icons/iconeBusca.svg" style="width: 14px; margin: 0;" alt="Buscar"></button>
                     <span id="nfOrdemNome" style="font-size: 0.9rem; color: var(--texto-secundario); font-style: italic; flex: 1;">Selecione a Ordem de Compra...</span>
                     <input type="hidden" name="ordem_id" id="nfOrdemId" required>
@@ -407,5 +407,64 @@ function recarregarNotaAtual() {
     // Hack para recarregar
     window.location.reload();
 }
+
+async function buscarOrdemForm(codigo) {
+    codigo = codigo.trim();
+    const spanNome = document.getElementById('nfOrdemNome');
+    const inputId = document.getElementById('nfOrdemId');
+    
+    if (!codigo) {
+        spanNome.textContent = 'Selecione a Ordem de Compra...';
+        spanNome.style.color = 'var(--texto-secundario)';
+        inputId.value = '';
+        return;
+    }
+    
+    spanNome.textContent = 'Buscando...';
+    spanNome.style.color = 'var(--texto-secundario)';
+    
+    try {
+        const resp = await fetch(Scopi.url(`/ordens/consultar-codigo?codigo=${encodeURIComponent(codigo)}`), {credentials:'include'});
+        const data = await resp.json();
+        if (data.sucesso && data.dados) {
+            spanNome.textContent = `Status: ${data.dados.status}`;
+            spanNome.style.color = 'var(--sucesso)';
+            inputId.value = data.dados.id;
+        } else {
+            spanNome.textContent = 'Ordem não encontrada';
+            spanNome.style.color = 'var(--alerta)';
+            inputId.value = '';
+        }
+    } catch (err) {
+        spanNome.textContent = 'Erro ao buscar';
+        spanNome.style.color = 'var(--alerta)';
+        inputId.value = '';
+    }
+}
+
+async function buscarFornecedorFiltro(codigo) {
+    codigo = codigo.trim();
+    const spanNome = document.getElementById('filtroFornNfNome');
+    if (!spanNome) return;
+    if (!codigo) { spanNome.textContent = 'Digite...'; return; }
+    spanNome.textContent = 'Buscando...';
+    try {
+        const resp = await fetch(Scopi.url(`/fornecedores/consultar-codigo?codigo=${encodeURIComponent(codigo)}`), {credentials:'include'});
+        const data = await resp.json();
+        if (data.sucesso && data.dados) {
+            spanNome.textContent = data.dados.razao_social;
+            spanNome.style.color = 'var(--sucesso)';
+        } else {
+            spanNome.textContent = 'Não encontrado';
+            spanNome.style.color = 'var(--alerta)';
+        }
+    } catch(e) {
+        spanNome.textContent = 'Erro';
+        spanNome.style.color = 'var(--alerta)';
+    }
+}
+
+const codInicial = document.getElementById('filtroFornNfCodigo')?.value;
+if (codInicial) buscarFornecedorFiltro(codInicial);
 </script>
 

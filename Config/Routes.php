@@ -107,6 +107,7 @@ $routes = [
     '/ordens/criar-de-solicitacao' => ['OrdemCompraControlador', 'criarDeSolicitacao'],
     '/ordens/exportar' => ['OrdemCompraControlador', 'exportar'],
     '/ordens/imprimir' => ['OrdemCompraControlador', 'imprimir'],
+    '/ordens/consultar-codigo' => ['OrdemCompraControlador', 'consultarCodigo'],
 
     '/notas' => ['NotaFiscalControlador', 'listar'],
     '/notas/dados' => ['NotaFiscalControlador', 'dados'],

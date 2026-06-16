@@ -526,8 +526,8 @@ function gerarFiltrosBuscaGlobal(tabela, contexto = '') {
     return html;
 }
 
-Scopi.iconeBusca = function(tabela, idCampoCodigo, idCampoNome, filtrosExtras) {
-    buscaGlobalAtual = { tabela, idCodigo: idCampoCodigo, idNome: idCampoNome, filtros: { status: 'ativo' }, isAninhada: false };
+Scopi.iconeBusca = function(tabela, idCampoCodigo, idCampoNome, idHidden) {
+    buscaGlobalAtual = { tabela, idCodigo: idCampoCodigo, idNome: idCampoNome, idHidden: idHidden, filtros: { status: 'ativo' }, isAninhada: false };
 
     // Configurar titulo
     const titulos = {
@@ -696,7 +696,7 @@ Scopi.executarBuscaGlobal = async function() {
                 html += '<td>' + (d.extra1||'') + '</td>';
             }
 
-            html += '<td><button class="btn btn-primario" style="padding:4px 8px;font-size:0.75rem;" onclick="Scopi.selecionarBuscaGlobal(\'' + d.identificador + '\', \'' + d.descricao.replace(/'/g, "\\'") + '\')">Selecionar</button></td>';
+            html += '<td><button class="btn btn-primario" style="padding:4px 8px;font-size:0.75rem;" onclick="Scopi.selecionarBuscaGlobal(\'' + d.identificador + '\', \'' + d.descricao.replace(/'/g, "\\'") + '\', ' + d.id + ')">Selecionar</button></td>';
             html += '</tr>';
         });
         tbody.innerHTML = html;
@@ -706,10 +706,11 @@ Scopi.executarBuscaGlobal = async function() {
     }
 };
 
-Scopi.selecionarBuscaGlobal = function(codigo, nome) {
+Scopi.selecionarBuscaGlobal = function(codigo, nome, id) {
     const isAninhada = buscaGlobalAtual.isAninhada;
     const idCodigo = buscaGlobalAtual.idCodigo;
     const idNome = buscaGlobalAtual.idNome;
+    const idHidden = buscaGlobalAtual.idHidden;
 
     if (isAninhada && pilhaBuscasAninhadas.length > 0) {
         // PRIMEIRO: restaurar a busca pai (recria os campos no DOM)
@@ -756,6 +757,14 @@ Scopi.selecionarBuscaGlobal = function(codigo, nome) {
                     elNome.textContent = nome;
                     elNome.style.display = 'inline';
                 }
+            }
+        }
+
+        if(idHidden && id) {
+            const elHidden = document.getElementById(idHidden);
+            if(elHidden) {
+                elHidden.value = id;
+                elHidden.dispatchEvent(new Event('change'));
             }
         }
 
