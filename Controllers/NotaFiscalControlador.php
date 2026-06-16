@@ -262,4 +262,26 @@ class NotaFiscalControlador extends BaseController {
         // Renderizar a view sem o layout padrão (header/footer) para impressão
         $this->renderizarSemLayout('notas/imprimir', compact('nota'));
     }
+
+    public function excluir(): void {
+        Auxiliares::exigirPerfil('contabilidade', 'administrador');
+        $usuario = Auxiliares::usuarioLogado();
+        $id = (int)($_POST['id'] ?? 0);
+
+        if ($id <= 0) {
+            $this->json(false, 'ID de nota fiscal inválido.');
+            return;
+        }
+
+        try {
+            $sucesso = $this->m->excluir($id, (int)$usuario['id']);
+            if ($sucesso) {
+                $this->json(true, 'Nota fiscal excluída com sucesso.');
+            } else {
+                $this->json(false, 'Erro ao excluir a nota fiscal.');
+            }
+        } catch (\Exception $e) {
+            $this->json(false, $e->getMessage());
+        }
+    }
 }

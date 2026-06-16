@@ -45,7 +45,13 @@ class NotaFiscalModelo extends ModeloBase {
         $nf = $q->fetch() ?: null;
         if ($nf) {
             $nf['itens'] = $this->buscarItens($id);
-            $nf['ordens_vinculadas'] = $this->buscarOrdensVinculadas($id);
+            $ordens = $this->buscarOrdensVinculadas($id);
+            require_once __DIR__ . '/OrdemCompraModelo.php';
+            $ocModelo = new OrdemCompraModelo();
+            foreach ($ordens as &$oc) {
+                $oc['itens'] = $ocModelo->buscarItens((int)$oc['id']);
+            }
+            $nf['ordens_vinculadas'] = $ordens;
         }
         return $nf;
     }
@@ -451,5 +457,111 @@ class NotaFiscalModelo extends ModeloBase {
             }
         }
         return $divergencias;
+    }
+
+    public function excluir(int $id, int $usuarioId): bool {
+        try {
+            $this->bd->beginTransaction();
+
+            // Buscar dados da nota fiscal
+            $nota = $this->buscarPorId($id);
+            if (!$nota) {
+                $this->bd->rollBack();
+                return false;
+            }
+
+            // Selecionar os IDs dos itens de ordem de compra vinculados aos itens desta nota
+            $qItensNf = $this->bd->prepare("
+                SELECT DISTINCT ordem_compra_item_id 
+                FROM nota_fiscal_itens 
+                WHERE nota_id = :id AND ordem_compra_item_id IS NOT NULL
+            ");
+            $qItensNf->execute([':id' => $id]);
+            $ocItemIds = $qItensNf->fetchAll(\PDO::FETCH_COLUMN);
+
+            // Selecionar os IDs das ordens de compra vinculadas a esta nota
+            $qOrdens = $this->bd->prepare("
+                SELECT ordem_id 
+                FROM nota_fiscal_ordens 
+                WHERE nota_fiscal_id = :id
+            ");
+            $qOrdens->execute([':id' => $id]);
+            $ordemIds = $qOrdens->fetchAll(\PDO::FETCH_COLUMN);
+
+            // Registrar histórico antes de excluir
+            $this->registrarAcaoPersonalizada(
+                'notas_fiscais',
+                $id,
+                $usuarioId,
+                'exclusão',
+                "Nota Fiscal número {$nota['numero']} (Valor: R$ " . number_format($nota['valor_total'] ?? 0, 2, ',', '.') . ") excluída."
+            );
+
+            // Excluir a nota fiscal (a exclusão dos itens e vínculos da tabela N:N ocorrerá via ON DELETE CASCADE no BD)
+            $qDel = $this->bd->prepare("DELETE FROM notas_fiscais WHERE id = :id");
+            $qDel->execute([':id' => $id]);
+
+            // Atualizar os itens da Ordem de Compra afetados
+            if (!empty($ocItemIds)) {
+                $qQtd = $this->bd->prepare("
+                    SELECT SUM(quantidade) 
+                    FROM nota_fiscal_itens 
+                    WHERE ordem_compra_item_id = :oci_id
+                ");
+                $qOcItem = $this->bd->prepare("
+                    SELECT quantidade 
+                    FROM ordem_compra_itens 
+                    WHERE id = :oci_id
+                ");
+                $qUpdateOcItem = $this->bd->prepare("
+                    UPDATE ordem_compra_itens 
+                    SET quantidade_atendida = :qtd, status_item = :st 
+                    WHERE id = :oci_id
+                ");
+
+                foreach ($ocItemIds as $ociId) {
+                    // Recalcular a quantidade recebida (agora sem os itens da nota deletada, pois já foi feito cascade)
+                    $qQtd->execute([':oci_id' => $ociId]);
+                    $novoRecebido = (float)($qQtd->fetchColumn() ?? 0);
+
+                    // Buscar a quantidade total exigida pelo item da OC
+                    $qOcItem->execute([':oci_id' => $ociId]);
+                    $qtdExigida = (float)($qOcItem->fetchColumn() ?? 0);
+
+                    // Definir o novo status do item
+                    if ($novoRecebido <= 0) {
+                        $statusItem = 'pendente';
+                    } elseif ($novoRecebido >= $qtdExigida) {
+                        $statusItem = 'atendido';
+                    } else {
+                        $statusItem = 'parcial';
+                    }
+
+                    // Atualizar
+                    $qUpdateOcItem->execute([
+                        ':qtd' => $novoRecebido,
+                        ':st' => $statusItem,
+                        ':oci_id' => $ociId
+                    ]);
+                }
+            }
+
+            // Atualizar o status das ordens de compra afetadas
+            if (!empty($ordemIds)) {
+                require_once __DIR__ . '/OrdemCompraModelo.php';
+                $ordemModelo = new OrdemCompraModelo();
+                foreach ($ordemIds as $ordemId) {
+                    $ordemModelo->atualizarStatusPorItens((int)$ordemId);
+                }
+            }
+
+            $this->bd->commit();
+            return true;
+        } catch (\Exception $e) {
+            if ($this->bd->inTransaction()) {
+                $this->bd->rollBack();
+            }
+            return false;
+        }
     }
 }

@@ -434,9 +434,15 @@ function _debounceBuscaFiltro() {
 
 // Função para gerar filtros contextuais
 function gerarFiltrosBuscaGlobal(tabela, contexto = '') {
-    // Esconder busca por termo quando há filtros específicos
+    // Esconder busca por termo quando há filtros específicos (para ordens, manter visível)
     const divBuscaTermo = document.getElementById('divBuscaTermoGlobal');
-    if(divBuscaTermo) divBuscaTermo.style.display = 'none';
+    if(divBuscaTermo) {
+        if (tabela === 'ordens') {
+            divBuscaTermo.style.display = 'flex';
+        } else {
+            divBuscaTermo.style.display = 'none';
+        }
+    }
 
     let html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px;">';
 
@@ -542,14 +548,20 @@ Scopi.iconeBusca = function(tabela, idCampoCodigo, idCampoNome, idHidden) {
     };
     document.getElementById('buscaGlobalEntidadeNome').textContent = titulos[tabela] || 'Registro';
 
-    // Limpar busca anterior
-    document.getElementById('inputBuscaGlobal').value = '';
+    // Limpar busca anterior ou preencher com valor atual
+    const inputCodVal = document.getElementById(idCampoCodigo)?.value || '';
+    document.getElementById('inputBuscaGlobal').value = (tabela === 'ordens') ? inputCodVal : '';
     document.getElementById('tbodyBuscaGlobal').innerHTML = '<tr><td colspan="5" style="text-align:center;color:#888;">Digite um termo e clique em buscar.</td></tr>';
 
     // Gerar filtros contextuais
     const filtrosDiv = document.getElementById('filtrosBuscaGlobal');
-    filtrosDiv.innerHTML = gerarFiltrosBuscaGlobal(tabela);
-    filtrosDiv.style.display = 'block';
+    const filtrosHtml = gerarFiltrosBuscaGlobal(tabela);
+    filtrosDiv.innerHTML = filtrosHtml;
+    if (tabela === 'ordens' || !filtrosHtml || filtrosHtml === '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px;"></div>') {
+        filtrosDiv.style.display = 'none';
+    } else {
+        filtrosDiv.style.display = 'block';
+    }
 
     // Configurar cabeçalho da tabela dinamicamente
     let htmlHead = '<tr>';
@@ -562,6 +574,12 @@ Scopi.iconeBusca = function(tabela, idCampoCodigo, idCampoNome, idHidden) {
     document.getElementById('theadBuscaGlobal').innerHTML = htmlHead;
 
     Scopi.abrirModal('modalBuscaGlobal');
+    
+    // Auto-trigger search for 'ordens'
+    if (tabela === 'ordens') {
+        Scopi.executarBuscaGlobal();
+    }
+    
     setTimeout(() => document.getElementById('inputBuscaGlobal').focus(), 100);
 };
 
@@ -584,8 +602,13 @@ Scopi.iconeBuscaAninhada = function(tabela, idCampoCodigo, idCampoVisualizacao) 
     document.getElementById('tbodyBuscaGlobal').innerHTML = '<tr><td colspan="5" style="text-align:center;color:#888;">Digite um termo e clique em buscar.</td></tr>';
 
     const filtrosDiv = document.getElementById('filtrosBuscaGlobal');
-    filtrosDiv.innerHTML = gerarFiltrosBuscaGlobal(tabela);
-    filtrosDiv.style.display = 'block';
+    const filtrosHtml = gerarFiltrosBuscaGlobal(tabela);
+    filtrosDiv.innerHTML = filtrosHtml;
+    if (tabela === 'ordens' || !filtrosHtml || filtrosHtml === '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px;"></div>') {
+        filtrosDiv.style.display = 'none';
+    } else {
+        filtrosDiv.style.display = 'block';
+    }
 
     let htmlHead = '<tr>';
     if(tabela === 'usuarios') { htmlHead += '<th>Matrícula</th><th>Nome</th><th>Departamento</th>'; }
@@ -620,8 +643,13 @@ Scopi.voltarBuscaAninhada = function() {
     document.getElementById('tbodyBuscaGlobal').innerHTML = '<tr><td colspan="5" style="text-align:center;color:#888;">Digite um termo e clique em buscar.</td></tr>';
 
     const filtrosDiv = document.getElementById('filtrosBuscaGlobal');
-    filtrosDiv.innerHTML = gerarFiltrosBuscaGlobal(buscaAnterior.tabela);
-    filtrosDiv.style.display = 'block';
+    const filtrosHtml = gerarFiltrosBuscaGlobal(buscaAnterior.tabela);
+    filtrosDiv.innerHTML = filtrosHtml;
+    if (buscaAnterior.tabela === 'ordens' || !filtrosHtml || filtrosHtml === '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px;"></div>') {
+        filtrosDiv.style.display = 'none';
+    } else {
+        filtrosDiv.style.display = 'block';
+    }
 
     let htmlHead = '<tr>';
     const tabela = buscaAnterior.tabela;
@@ -644,12 +672,12 @@ Scopi.executarBuscaGlobal = async function() {
         return; // Termo muito curto, aguardar mais digitação
     }
 
-    // Verificar se há pelo menos um filtro preenchido quando o termo está vazio
+    // Verificar se há pelo menos um filtro preenchido quando o termo está vazio (para ordens, permitir busca sem termo/filtro)
     const temFiltro = Object.keys(buscaGlobalAtual.filtros).some(k => {
         const v = buscaGlobalAtual.filtros[k];
         return v && v !== '' && k !== 'status'; // ignora o filtro 'status: ativo' padrão
     });
-    if (termo === '' && !temFiltro) {
+    if (termo === '' && !temFiltro && buscaGlobalAtual.tabela !== 'ordens') {
         return; // Sem termo e sem filtros, não buscar
     }
 

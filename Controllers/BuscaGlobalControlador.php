@@ -272,9 +272,12 @@ class BuscaGlobalControlador extends BaseController {
         $sql = "SELECT o.id, o.numero AS identificador, o.status AS descricao, f.razao_social AS extra1
                 FROM ordens_compra o
                 LEFT JOIN fornecedores f ON f.id = o.fornecedor_id
-                WHERE o.numero LIKE :termo OR f.razao_social LIKE :termo
+                WHERE o.numero LIKE :termoNum OR f.razao_social LIKE :termoForn
                 ORDER BY o.numero DESC" . $limite;
-        $p = [':termo' => "%{$termo}%"];
+        $p = [
+            ':termoNum' => "%{$termo}%",
+            ':termoForn' => "%{$termo}%"
+        ];
         $q = $bd->prepare($sql);
         $q->execute($p);
         return $q->fetchAll(\PDO::FETCH_ASSOC);

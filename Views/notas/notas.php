@@ -54,6 +54,9 @@
         <td class="coluna-acoes">
           <button class="btn-icone btn-editar-linha" onclick="Scopi.abrirRegistro('modalNota','formNota','/notas/dados',<?= $n['id'] ?>,'visualizar')" title="Ver"><img src="<?= BASE_URL ?>/public/assets/icons/iconeEditar.svg" alt=""></button>
           <button class="btn-icone" onclick="window.open('<?= BASE_URL ?>/notas/imprimir?id=<?= $n['id'] ?>', '_blank')" title="Imprimir"><img src="<?= BASE_URL ?>/public/assets/icons/iconeDownload.svg" alt=""></button>
+          <?php if(in_array(Auxiliares::usuarioLogado()['perfil'] ?? '', ['contabilidade', 'administrador'])): ?>
+            <button class="btn-icone btn-excluir-linha" onclick="excluirNota(<?= $n['id'] ?>, '<?= Auxiliares::escapar($n['numero']) ?>')" title="Excluir"><img src="<?= BASE_URL ?>/public/assets/icons/iconeLixeira.svg" alt=""></button>
+          <?php endif; ?>
         </td>
       </tr>
       <?php endforeach; endif; ?>
@@ -267,6 +270,7 @@ Scopi.fecharModal = function(id) {
 };
 
 let _itensNfAbertos = [];
+let _ordensVinculadasAbertas = [];
 
 Scopi.abrirRegistro = async function(idModal, idForm, urlDados, id, abaInicial='visualizar') {
     Scopi.abrirModal(idModal);
@@ -284,6 +288,7 @@ Scopi.abrirRegistro = async function(idModal, idForm, urlDados, id, abaInicial='
         Scopi.preencherVisualizacao(idModal, json.dados);
         
         _itensNfAbertos = json.dados.itens || [];
+        _ordensVinculadasAbertas = json.dados.ordens_vinculadas || [];
         renderItensNF();
 
         const titulo = overlay.querySelector('.modal-titulo span');
@@ -311,12 +316,25 @@ function renderItensNF() {
             conteudoLancamento = `<span class="badge badge-lancado">Lançado: OC ${item.ordem_numero} - Item ${item.ordem_item_numero}</span>`;
             acoes = `<button type="button" class="btn btn-secundario" style="padding:4px 8px; font-size:0.75rem;" onclick="retirarLancamentoItem(${item.id})">Desfazer</button>`;
         } else {
+            // Construir as opções do select com os itens das ordens de compra vinculadas
+            let optionsHtml = '<option value="">Selecione...</option>';
+            _ordensVinculadasAbertas.forEach(oc => {
+                const ocItens = oc.itens || [];
+                ocItens.forEach(ocItem => {
+                    const saldo = parseFloat(ocItem.quantidade) - parseFloat(ocItem.quantidade_atendida);
+                    // Match automático se os códigos de produto forem iguais
+                    const isMatch = (item.produto_codigo && ocItem.produto_codigo && item.produto_codigo === ocItem.produto_codigo);
+                    const selected = isMatch ? 'selected' : '';
+                    
+                    const desc = `OC ${oc.numero} - Item ${ocItem.numero_item}: ${ocItem.produto_codigo} - ${ocItem.produto_nome} (Saldo: ${saldo.toFixed(2)})`;
+                    optionsHtml += `<option value="${oc.numero}|${ocItem.numero_item}" ${selected}>${desc}</option>`;
+                });
+            });
+
             conteudoLancamento = `
-                <div style="display:flex; gap:6px; align-items:center;">
-                    <input type="text" id="ln_oc_${item.id}" class="campo-input" style="width:90px; padding:4px 6px; font-size:0.8rem; text-transform:uppercase;"  value="${item.numero_item_pedido || ''}">
-                    <span style="color:#aaa;">-</span>
-                    <input type="number" id="ln_item_${item.id}" class="campo-input" style="width:60px; padding:4px 6px; font-size:0.8rem;" >
-                </div>
+                <select id="ln_select_${item.id}" class="campo-input" style="width: 100%; padding: 4px 6px; font-size: 0.8rem; max-width: 250px;">
+                    ${optionsHtml}
+                </select>
             `;
             acoes = `<button type="button" class="btn btn-primario" style="padding:4px 8px; font-size:0.75rem;" onclick="lancarItemNF(${item.id})">Lançar</button>`;
         }
@@ -338,13 +356,13 @@ function renderItensNF() {
 }
 
 async function lancarItemNF(id) {
-    const numOc = document.getElementById('ln_oc_' + id)?.value;
-    const numItem = document.getElementById('ln_item_' + id)?.value;
-    
-    if (!numOc || !numItem) {
-        Scopi.toast('erro', 'Preencha a OC e o Item para lançar.');
+    const select = document.getElementById('ln_select_' + id);
+    if (!select || !select.value) {
+        Scopi.toast('erro', 'Selecione a OC e o Item para lançar.');
         return;
     }
+    
+    const [numOc, numItem] = select.value.split('|');
     
     try {
         const formData = new URLSearchParams();
@@ -466,5 +484,31 @@ async function buscarFornecedorFiltro(codigo) {
 
 const codInicial = document.getElementById('filtroFornNfCodigo')?.value;
 if (codInicial) buscarFornecedorFiltro(codInicial);
+
+function excluirNota(id, numero) {
+    Scopi.confirmar(`Deseja realmente excluir a Nota Fiscal nº ${numero}? Esta ação é irreversível e desfará todos os lançamentos vinculados a ela.`, async () => {
+        try {
+            const formData = new URLSearchParams();
+            formData.append('id', id);
+
+            const resp = await fetch(Scopi.url('/notas/excluir'), {
+                method: 'POST',
+                credentials: 'include',
+                body: formData,
+                headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest'}
+            });
+            const json = await resp.json();
+
+            if (json.sucesso) {
+                Scopi.toast('sucesso', json.mensagem || 'Nota fiscal excluída com sucesso.');
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                Scopi.toast('erro', json.mensagem || 'Erro ao excluir a nota fiscal.');
+            }
+        } catch(err) {
+            Scopi.toast('erro', 'Erro de conexão.');
+        }
+    });
+}
 </script>
 

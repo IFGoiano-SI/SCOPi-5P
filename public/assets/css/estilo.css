@@ -293,6 +293,8 @@ body.sidebar-retraida .conteudo{margin-left:var(--sb-min)}
 .btn-filtrar:hover{background:var(--media)}
 .btn-icone{background:none;border:none;padding:3px;cursor:pointer;display:inline-flex;align-items:center;border-radius:5px;transition:background var(--trans)}
 .btn-icone:hover{background:rgba(145,51,210,.1)}
+.btn-icone.btn-excluir-linha:hover{background:rgba(194,24,91,.1)}
+.btn-icone.btn-excluir-linha:hover img{filter:brightness(0) saturate(100%) invert(19%) sepia(81%) saturate(2716%) hue-rotate(324deg) brightness(85%) contrast(93%)}
 .btn-icone img{width:15px;filter:brightness(0) saturate(100%) invert(20%) sepia(80%) saturate(600%) hue-rotate(260deg)}
 .btn:disabled{opacity:0.5;cursor:not-allowed}
 .btn:disabled:hover{background:inherit}

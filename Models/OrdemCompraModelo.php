@@ -220,7 +220,15 @@ class OrdemCompraModelo extends ModeloBase {
         } elseif ($atendidos > 0 || $parciais > 0) {
             $novoStatus = 'parcialmente_atendido';
         } else {
-            return; // Nenhuma mudança necessária
+            // Se o status atual for concluído ou parcialmente atendido, mas não há mais itens atendidos/parciais, volta para enviado
+            $qCurrent = $this->bd->prepare("SELECT status FROM ordens_compra WHERE id = :oid");
+            $qCurrent->execute([':oid' => $ordemId]);
+            $currentStatus = $qCurrent->fetchColumn();
+            if (in_array($currentStatus, ['parcialmente_atendido', 'concluido'])) {
+                $novoStatus = 'enviado';
+            } else {
+                return;
+            }
         }
 
         $qUp = $this->bd->prepare("UPDATE ordens_compra SET status = :st, atualizado_em = NOW() WHERE id = :oid");

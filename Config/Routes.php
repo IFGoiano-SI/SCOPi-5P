@@ -118,6 +118,7 @@ $routes = [
     '/notas/imprimir' => ['NotaFiscalControlador', 'imprimir'],
     '/notas/lancar_item' => ['NotaFiscalControlador', 'lancar_item'],
     '/notas/retirar_lancamento_item' => ['NotaFiscalControlador', 'retirar_lancamento_item'],
+    '/notas/excluir' => ['NotaFiscalControlador', 'excluir'],
 
     '/notificacoes' => ['NotificacaoControlador', 'listar'],
     '/notificacoes/dados' => ['NotificacaoControlador', 'dados'],
