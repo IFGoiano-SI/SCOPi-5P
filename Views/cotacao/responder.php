@@ -121,7 +121,7 @@ use Config\Auxiliares;
     }
 
     .pagina-responder {
-      max-width: 1100px;
+      max-width: 96%;
       width: 100%;
       margin: 30px auto;
       padding: 0 20px 60px;
@@ -443,8 +443,8 @@ use Config\Auxiliares;
           </div>
 
           <div class="campo-form">
-            <label for="condicao_pagamento">Condição de Pagamento *</label>
-            <input type="text" name="condicao_pagamento" id="condicao_pagamento" required value="<?= htmlspecialchars($cf['condicao_pagamento'] ?? '') ?>"  <?= $fechada ? 'readonly' : '' ?>>
+            <label for="cnpj_transportadora">CNPJ da Transportadora</label>
+            <input type="text" name="cnpj_transportadora" id="cnpj_transportadora" value="<?= htmlspecialchars($cf['cnpj_transportadora'] ?? '') ?>"  <?= $fechada ? 'readonly' : '' ?> oninput="mascararCnpj(this)" maxlength="18" placeholder="00.000.000/0000-00">
           </div>
 
           <div class="campo-form">
@@ -455,11 +455,6 @@ use Config\Auxiliares;
           <div class="campo-form">
             <label for="validade_proposta">Validade da Proposta</label>
             <input type="date" name="validade_proposta" id="validade_proposta" value="<?= htmlspecialchars($cf['validade_proposta'] ?? '') ?>" <?= $fechada ? 'readonly' : '' ?>>
-          </div>
-
-          <div class="campo-form">
-            <label for="cnpj_transportadora">CNPJ da Transportadora</label>
-            <input type="text" name="cnpj_transportadora" id="cnpj_transportadora" value="<?= htmlspecialchars($cf['cnpj_transportadora'] ?? '') ?>"  <?= $fechada ? 'readonly' : '' ?>>
           </div>
 
           <div class="campo-form campo-completo">
@@ -758,6 +753,16 @@ use Config\Auxiliares;
           btn.innerHTML = '<img src="<?= BASE_URL ?>/public/assets/icons/iconeVerificado.svg" alt="" style="filter: brightness(0) invert(1);"> Enviar Proposta Comercial';
         }
       }
+    }
+
+    function mascararCnpj(input) {
+      let v = input.value.replace(/\D/g, '').substring(0, 14);
+      if (v.length <= 2) v = v;
+      else if (v.length <= 5) v = v.slice(0, 2) + '.' + v.slice(2);
+      else if (v.length <= 8) v = v.slice(0, 2) + '.' + v.slice(2, 5) + '.' + v.slice(5);
+      else if (v.length <= 12) v = v.slice(0, 2) + '.' + v.slice(2, 5) + '.' + v.slice(5, 8) + '/' + v.slice(8);
+      else v = v.slice(0, 2) + '.' + v.slice(2, 5) + '.' + v.slice(5, 8) + '/' + v.slice(8, 12) + '-' + v.slice(12);
+      input.value = v;
     }
   </script>
 

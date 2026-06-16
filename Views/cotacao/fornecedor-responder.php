@@ -7,7 +7,7 @@ $respostasAnteriores = $respostasAnteriores ?? [];
 $totalEnvios = $totalEnvios ?? 0;
 ?>
 
-<div class="container-form" style="max-width:1200px;">
+<div class="container-form" style="max-width:96%;">
 
   <div style="margin-bottom:30px;">
     <h1 style="margin:0 0 10px 0;">Responder Cotação - <?= Auxiliares::escapar($cotacao['numero'] ?? '') ?></h1>
@@ -57,7 +57,7 @@ $totalEnvios = $totalEnvios ?? 0;
       <div class="campo-form">
         <label style="font-size:0.75rem;">CNPJ Transportadora</label>
         <input type="text" id="cnpj_transportadora" class="campo-input" placeholder="00.000.000/0000-00"
-               value="<?= Auxiliares::escapar($fornecedor['cnpj_transportadora'] ?? '') ?>">
+               value="<?= Auxiliares::escapar($fornecedor['cnpj_transportadora'] ?? '') ?>" oninput="mascararCnpj(this)" maxlength="18">
       </div>
       <div class="campo-form">
         <label style="font-size:0.75rem;">Modalidade Frete</label>
@@ -288,4 +288,14 @@ const Auxiliares = {
     return div.innerHTML;
   }
 };
+
+function mascararCnpj(input) {
+  let v = input.value.replace(/\D/g, '').substring(0, 14);
+  if (v.length <= 2) v = v;
+  else if (v.length <= 5) v = v.slice(0, 2) + '.' + v.slice(2);
+  else if (v.length <= 8) v = v.slice(0, 2) + '.' + v.slice(2, 5) + '.' + v.slice(5);
+  else if (v.length <= 12) v = v.slice(0, 2) + '.' + v.slice(2, 5) + '.' + v.slice(5, 8) + '/' + v.slice(8);
+  else v = v.slice(0, 2) + '.' + v.slice(2, 5) + '.' + v.slice(5, 8) + '/' + v.slice(8, 12) + '-' + v.slice(12);
+  input.value = v;
+}
 </script>

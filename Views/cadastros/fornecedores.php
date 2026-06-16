@@ -113,7 +113,7 @@
             <div class="campo-form campo-completo"><label>Nome Fantasia</label><input type="text" name="nome_fantasia"></div>
             <div class="campo-form">
               <label>CNPJ *</label>
-              <input type="text" name="cnpj" required onblur="consultarCnpjReceita(this)">
+              <input type="text" name="cnpj" required onblur="consultarCnpjReceita(this)" oninput="mascararCnpj(this)" maxlength="18" placeholder="00.000.000/0000-00">
             </div>
             <div class="campo-form"><label>Inscrição Estadual</label><input type="text" name="inscricao_estadual"></div>
             
@@ -368,6 +368,233 @@ function toggleMatrizSelect(tipo) {
 function toggleNumeroForn(cb) {
     const input = document.getElementById('forn_numero');
     if (input) { input.disabled = cb.checked; if (cb.checked) input.value = ''; }
+}
+
+function mascararCEP(input) {
+    let v = input.value.replace(/\D/g, '').substring(0, 8);
+    if (v.length > 5) {
+        v = v.slice(0, 5) + '-' + v.slice(5);
+    }
+    input.value = v;
+}
+
+async function consultarCEP(input) {
+    const cep = input.value.replace(/\D/g, '');
+    if (cep.length !== 8) {
+        return;
+    }
+    
+    const form = input.form;
+    if (!form) return;
+    
+    const logradouroInput = form.querySelector('input[name="logradouro"]');
+    const complementoInput = form.querySelector('input[name="complemento"]');
+    const bairroInput = form.querySelector('input[name="bairro"]');
+    const nomeCidadeInput = form.querySelector('input[name="nome_cidade"]');
+    const cidadeIdInput = form.querySelector('input[name="cidade_id"]');
+    const siglaEstadoInput = form.querySelector('input[name="sigla_estado"]');
+    const estadoIdInput = form.querySelector('input[name="estado_id"]');
+    const nomeEstadoInput = form.querySelector('input[name="nome_estado"]');
+    const nomePaisInput = form.querySelector('input[name="nome_pais"]');
+    const paisIdInput = form.querySelector('input[name="pais_id"]');
+    const numeroInput = form.querySelector('input[name="numero"]');
+
+    const inputsToBlock = [logradouroInput, complementoInput, bairroInput, nomeCidadeInput, siglaEstadoInput].filter(Boolean);
+    inputsToBlock.forEach(el => el.disabled = true);
+    
+    try {
+        const resp = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+        const data = await resp.json();
+        
+        if (data && !data.erro) {
+            if (logradouroInput) logradouroInput.value = data.logradouro || '';
+            if (complementoInput) complementoInput.value = data.complemento || '';
+            if (bairroInput) bairroInput.value = data.bairro || '';
+            if (nomeCidadeInput) nomeCidadeInput.value = data.localidade || '';
+            if (cidadeIdInput) cidadeIdInput.value = '';
+            if (siglaEstadoInput) siglaEstadoInput.value = data.uf || '';
+            if (estadoIdInput) estadoIdInput.value = '';
+            if (nomeEstadoInput) nomeEstadoInput.value = data.estado || '';
+            if (nomePaisInput) nomePaisInput.value = 'Brasil';
+            if (paisIdInput) paisIdInput.value = '';
+            
+            if (numeroInput) numeroInput.focus();
+        } else {
+            Scopi.toast('alerta', 'CEP não encontrado.');
+        }
+    } catch (e) {
+        console.error(e);
+        Scopi.toast('erro', 'Erro ao consultar CEP na ViaCEP.');
+    } finally {
+        inputsToBlock.forEach(el => el.disabled = false);
+    }
+}
+
+function mascararCnpj(input) {
+    let v = input.value.replace(/\D/g, '').substring(0, 14);
+    if (v.length <= 2) v = v;
+    else if (v.length <= 5) v = v.slice(0, 2) + '.' + v.slice(2);
+    else if (v.length <= 8) v = v.slice(0, 2) + '.' + v.slice(2, 5) + '.' + v.slice(5);
+    else if (v.length <= 12) v = v.slice(0, 2) + '.' + v.slice(2, 5) + '.' + v.slice(5, 8) + '/' + v.slice(8);
+    else v = v.slice(0, 2) + '.' + v.slice(2, 5) + '.' + v.slice(5, 8) + '/' + v.slice(8, 12) + '-' + v.slice(12);
+    input.value = v;
+}
+
+async function consultarCnpjReceita(input) {
+    const cnpj = input.value.replace(/\D/g, '');
+    if (cnpj.length !== 14) {
+        return;
+    }
+    
+    const form = input.form;
+    if (!form) return;
+    
+    const inputsToBlock = Array.from(form.querySelectorAll('input:not([readonly]), select:not([readonly]), textarea:not([readonly])'));
+    inputsToBlock.forEach(el => el.disabled = true);
+    
+    try {
+        const resp = await fetch(`https://publica.cnpj.ws/cnpj/${cnpj}`);
+        
+        if (resp.status === 429) {
+            Scopi.toast('alerta', 'Limite de consultas atingido (3/min). Aguarde 60 segundos.');
+            return;
+        }
+        
+        if (!resp.ok) {
+            Scopi.toast('alerta', 'Erro ao consultar CNPJ. Verifique os dados ou tente novamente mais tarde.');
+            return;
+        }
+        
+        const data = await resp.json();
+        
+        if (data && (data.razao_social || data.estabelecimento)) {
+            const razaoSocialInput = form.querySelector('input[name="razao_social"]');
+            if (razaoSocialInput) razaoSocialInput.value = data.razao_social || '';
+            
+            const nomeFantasiaInput = form.querySelector('input[name="nome_fantasia"]');
+            if (nomeFantasiaInput) {
+                nomeFantasiaInput.value = (data.estabelecimento && data.estabelecimento.nome_fantasia) || '';
+            }
+            
+            let ie = '';
+            if (data.estabelecimento && Array.isArray(data.estabelecimento.inscricoes_estaduais)) {
+                const ativa = data.estabelecimento.inscricoes_estaduais.find(x => x.ativo);
+                if (ativa) {
+                    ie = ativa.inscricao_estadual;
+                } else if (data.estabelecimento.inscricoes_estaduais.length > 0) {
+                    ie = data.estabelecimento.inscricoes_estaduais[0].inscricao_estadual;
+                }
+            }
+            const ieInput = form.querySelector('input[name="inscricao_estadual"]');
+            if (ieInput) ieInput.value = ie;
+            
+            let cep = (data.estabelecimento && data.estabelecimento.cep) || '';
+            if (cep && cep.length === 8) {
+                cep = cep.slice(0, 5) + '-' + cep.slice(5);
+            }
+            const cepInput = form.querySelector('input[name="cep"]');
+            if (cepInput) cepInput.value = cep;
+            
+            let logradouro = '';
+            if (data.estabelecimento) {
+                logradouro = (data.estabelecimento.tipo_logradouro ? data.estabelecimento.tipo_logradouro + ' ' : '') + (data.estabelecimento.logradouro || '');
+                logradouro = logradouro.trim();
+            }
+            const logradouroInput = form.querySelector('input[name="logradouro"]');
+            if (logradouroInput) logradouroInput.value = logradouro;
+            
+            const numeroInput = form.querySelector('input[name="numero"]');
+            const semNumeroCheckbox = document.getElementById('forn_sem_numero');
+            const numeroVal = data.estabelecimento && data.estabelecimento.numero ? data.estabelecimento.numero.trim() : '';
+            
+            if (numeroVal.toLowerCase() === 's/n' || numeroVal.toLowerCase() === 'sn' || numeroVal.toLowerCase() === 'sem numero' || numeroVal.toLowerCase() === 'sem número') {
+                if (semNumeroCheckbox) semNumeroCheckbox.checked = true;
+                if (numeroInput) {
+                    numeroInput.value = '';
+                    numeroInput.disabled = true;
+                }
+            } else {
+                if (semNumeroCheckbox) semNumeroCheckbox.checked = false;
+                if (numeroInput) {
+                    numeroInput.value = numeroVal;
+                    numeroInput.disabled = false;
+                }
+            }
+            
+            const compInput = form.querySelector('input[name="complemento"]');
+            if (compInput) compInput.value = (data.estabelecimento && data.estabelecimento.complemento) || '';
+            
+            const bairroInput = form.querySelector('input[name="bairro"]');
+            if (bairroInput) bairroInput.value = (data.estabelecimento && data.estabelecimento.bairro) || '';
+            
+            const cidadeInput = form.querySelector('input[name="nome_cidade"]');
+            if (cidadeInput) cidadeInput.value = (data.estabelecimento && data.estabelecimento.cidade && data.estabelecimento.cidade.nome) || '';
+            
+            const cidadeIdInput = form.querySelector('input[name="cidade_id"]');
+            if (cidadeIdInput) cidadeIdInput.value = '';
+            
+            const siglaEstadoInput = form.querySelector('input[name="sigla_estado"]');
+            if (siglaEstadoInput) siglaEstadoInput.value = (data.estabelecimento && data.estabelecimento.estado && data.estabelecimento.estado.sigla) || '';
+            
+            const estadoIdInput = form.querySelector('input[name="estado_id"]');
+            if (estadoIdInput) estadoIdInput.value = '';
+            
+            const nomeEstadoInput = form.querySelector('input[name="nome_estado"]');
+            if (nomeEstadoInput) nomeEstadoInput.value = (data.estabelecimento && data.estabelecimento.estado && data.estabelecimento.estado.nome) || '';
+            
+            const nomePaisInput = form.querySelector('input[name="nome_pais"]');
+            if (nomePaisInput) nomePaisInput.value = (data.estabelecimento && data.estabelecimento.pais && data.estabelecimento.pais.nome) || 'Brasil';
+            
+            const paisIdInput = form.querySelector('input[name="pais_id"]');
+            if (paisIdInput) paisIdInput.value = '';
+            
+            const emailInput = form.querySelector('input[name="email"]');
+            if (emailInput) emailInput.value = (data.estabelecimento && data.estabelecimento.email) || '';
+            
+            let contato = '';
+            if (data.estabelecimento) {
+                if (data.estabelecimento.ddd1 && data.estabelecimento.telefone1) {
+                    contato = '(' + data.estabelecimento.ddd1 + ') ' + data.estabelecimento.telefone1;
+                } else if (data.estabelecimento.telefone1) {
+                    contato = data.estabelecimento.telefone1;
+                }
+            }
+            const contatoInput = form.querySelector('input[name="contato"]');
+            if (contatoInput) contatoInput.value = contato;
+            
+            let responsavel = '';
+            if (data.socios && data.socios.length > 0) {
+                responsavel = data.socios[0].nome || '';
+            }
+            const respInput = form.querySelector('input[name="responsavel"]');
+            if (respInput) respInput.value = responsavel;
+            
+            const tipoSelect = form.querySelector('select[name="tipo"]');
+            if (tipoSelect && data.estabelecimento && data.estabelecimento.tipo) {
+                const tipoLower = data.estabelecimento.tipo.toLowerCase();
+                if (tipoLower === 'matriz' || tipoLower === 'filial') {
+                    tipoSelect.value = tipoLower;
+                    if (typeof toggleMatrizSelect === 'function') {
+                        toggleMatrizSelect(tipoLower);
+                    }
+                }
+            }
+            
+            Scopi.toast('sucesso', 'Dados do CNPJ importados com sucesso.');
+        } else {
+            Scopi.toast('alerta', 'CNPJ não encontrado ou resposta inválida.');
+        }
+    } catch (e) {
+        console.error(e);
+        Scopi.toast('erro', 'Erro ao consultar CNPJ.');
+    } finally {
+        inputsToBlock.forEach(el => el.disabled = false);
+        const semNumeroCheckbox = document.getElementById('forn_sem_numero');
+        const numeroInput = document.getElementById('forn_numero');
+        if (semNumeroCheckbox && semNumeroCheckbox.checked && numeroInput) {
+            numeroInput.disabled = true;
+        }
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
